@@ -73,7 +73,7 @@
     .o_tdata(ce_i_tdata[7]), .o_tlast(ce_i_tlast[7]), .o_tvalid(ce_i_tvalid[7]), .o_tready(ce_i_tready[7]),
     .debug(ce_debug[7]));
 
-  noc_block_keep_one_in_n inst_noc_block_keep_one_in_n (
+  noc_block_envelope inst_noc_block_envelope (
     .bus_clk(bus_clk), .bus_rst(bus_rst),
     .ce_clk(ce_clk), .ce_rst(ce_rst),
     .i_tdata(ce_o_tdata[8]), .i_tlast(ce_o_tlast[8]), .i_tvalid(ce_o_tvalid[8]), .i_tready(ce_o_tready[8]),
