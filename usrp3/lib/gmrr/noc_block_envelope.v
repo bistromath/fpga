@@ -31,12 +31,6 @@ module noc_block_envelope #(
   // Settings registers addresses
   localparam SR_NEXT_DST    = 128;
   localparam SR_AXI_CONFIG  = 129;
-
-  localparam SR_ALPHA_NUM   = 192;
-  localparam SR_BETA_NUM    = 193;
-  localparam SR_ALPHA_DENOM = 194;
-  localparam SR_BETA_DENOM  = 195;
-
   localparam SR_READBACK    = 255;
 
   //----------------------------------------------------------------------------
@@ -184,13 +178,13 @@ module noc_block_envelope #(
     .m_axis_config_tlast(),
     .m_axis_config_tvalid(),
     .m_axis_config_tready(1'b1));
-
+/*
   complex_to_mag_approx #(
       .ALPHA_NUM(61),
       .ALPHA_DENOM(64),
       .BETA_NUM(13),
       .BETA_DENOM(32),
-      .LATENCY(3),
+      .LATENCY(1),
       .SAMP_WIDTH(16)) inst_mag (
    .clk(ce_clk),
    .reset(ce_rst),
@@ -202,7 +196,19 @@ module noc_block_envelope #(
    .o_tlast(s_axis_data_tlast),
    .o_tready(s_axis_data_tready),
    .o_tvalid(s_axis_data_tvalid));
-
+*/
+  //this goes from SC16 I,Q to SP16 M,P
+  complex_to_magphase inst_complex_to_magphase (
+     .aclk(ce_clk),
+     .aresetn(~ce_rst),
+     .s_axis_cartesian_tdata(m_axis_data_tdata),
+     .s_axis_cartesian_tlast(m_axis_data_tlast),
+     .s_axis_cartesian_tready(m_axis_data_tready),
+     .s_axis_cartesian_tvalid(m_axis_data_tvalid),
+     .m_axis_dout_tdata(s_axis_data_tdata),
+     .m_axis_dout_tlast(s_axis_data_tlast),
+     .m_axis_dout_tready(s_axis_data_tready),
+     .m_axis_dout_tvalid(s_axis_data_tvalid));
   //----------------------------------------------------------------------------
   // Combinational Logic
   //----------------------------------------------------------------------------
