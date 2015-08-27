@@ -194,24 +194,25 @@ module noc_block_gain #(
     .m_axis_config_tvalid(),
     .m_axis_config_tready(1'b1));
 
-  wire mult_tdata[23:0];
+  wire [23:0] mult_tdata;
   wire mult_tready, mult_tvalid, mult_tlast;
+  wire cplx_tready, real_tready;
 
-  mult_rc #(.WIDTH_A(16),
+  mult_rc #(.WIDTH_REAL(16),
          .WIDTH_CPLX(16),
          .WIDTH_P(24),
          .DROP_TOP_P(0),
-         .LATENCY(3),
+         .LATENCY(4),
          .CASCADE_OUT(0)) inst_mult (
       .clk(ce_clk),
       .reset(ce_rst),
       .cplx_tdata(m_axis_data_tdata),
       .cplx_tlast(m_axis_data_tlast),
       .cplx_tvalid(m_axis_data_tvalid),
-      .cplx_tready(m_axis_data_tready),
+      .cplx_tready(cplx_tready),
       .real_tdata(gain),
       .real_tlast(m_axis_data_tlast),
-      .real_tready(m_axis_data_tready),
+      .real_tready(real_tready),
       .real_tvalid(m_axis_data_tvalid),
       .p_tdata(mult_tdata),
       .p_tlast(mult_tlast),
@@ -238,6 +239,7 @@ module noc_block_gain #(
   //----------------------------------------------------------------------------
   // Combinational Logic
   //----------------------------------------------------------------------------
+  assign m_axis_data_tready = cplx_tready & real_tready;
 
 
   // Readback register values
