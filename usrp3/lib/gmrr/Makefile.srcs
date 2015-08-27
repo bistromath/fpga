@@ -1,0 +1,10 @@
+#
+# Copyright 2015 GMRR
+#
+
+##################################################
+# GMRR Sources
+##################################################
+GMRR_SRCS = $(abspath $(addprefix $(BASE_DIR)/../lib/gmrr/, \
+noc_block_gain.v \
+))

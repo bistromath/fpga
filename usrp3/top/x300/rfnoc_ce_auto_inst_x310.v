@@ -80,12 +80,12 @@
     .o_tdata(ce_i_tdata[8]), .o_tlast(ce_i_tlast[8]), .o_tvalid(ce_i_tvalid[8]), .o_tready(ce_i_tready[8]),
     .debug(ce_debug[8]));
 
-  noc_block_fosphor inst_noc_block_fosphor (
-    .bus_clk(bus_clk), .bus_rst(bus_rst),
-    .ce_clk(ce_clk), .ce_rst(ce_rst),
-    .i_tdata(ce_o_tdata[9]), .i_tlast(ce_o_tlast[9]), .i_tvalid(ce_o_tvalid[9]), .i_tready(ce_o_tready[9]),
-    .o_tdata(ce_i_tdata[9]), .o_tlast(ce_i_tlast[9]), .o_tvalid(ce_i_tvalid[9]), .o_tready(ce_i_tready[9]),
-    .debug(ce_debug[9]));
+  noc_block_gain inst_noc_block_gain (
+     .bus_clk(bus_clk), .bus_rst(bus_rst),
+     .ce_clk(ce_clk), .ce_rst(ce_rst),
+     .i_tdata(ce_o_tdata[9]), .i_tlast(ce_o_tlast[9]), .i_tvalid(ce_o_tvalid[9]), .i_tready(ce_o_tready[9]),
+     .o_tdata(ce_i_tdata[9]), .o_tlast(ce_i_tlast[9]), .o_tvalid(ce_i_tvalid[9]), .o_tready(ce_i_tready[9]),
+     .debug(ce_debug[9]));
 
   // Fill remaining crossbar ports with loopback FIFOs
   genvar n;
