@@ -35,6 +35,7 @@ include ../../lib/axi/Makefile.srcs
 include ../../lib/radio/Makefile.srcs
 include ../../lib/io_cap_gen/Makefile.srcs
 include ../../lib/rfnoc/Makefile.srcs
+include ../../lib/gmrr/Makefile.srcs
 
 ##################################################
 # Sources
