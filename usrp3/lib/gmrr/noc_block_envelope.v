@@ -3,7 +3,7 @@
 //
 
 module noc_block_envelope #(
-  parameter NOC_ID = 64'hB00C_0000_0000_0000,
+  parameter NOC_ID = 64'hB010_0000_0000_0000,
   parameter STR_SINK_FIFOSIZE = 11)
 (
   input bus_clk,
