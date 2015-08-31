@@ -58,15 +58,17 @@ module noc_block_envelope #(
   wire [1:0] str_src_tlast, str_src_tvalid, str_src_tready;
 
   // AXI Wrapper
-  // output data
+  // input (sink) data
   wire [31:0]  m_axis_data_tdata;
   wire [127:0] m_axis_data_tuser;
   wire m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
 
+  // output (source) data
   wire [31:0]  s_axis_data_tdata;
   wire [127:0] s_axis_data_tuser;
   wire s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
 
+  //CHDR headers, post- and pre-munged (for multiple output SIDs)
   wire [127:0]  out_tuser[0:1], out_tuser_pre[0:1];
   //----------------------------------------------------------------------------
   // Registers
@@ -190,9 +192,33 @@ module noc_block_envelope #(
   //pack them back into SC16 output streams.
   //TODO this is only necessary if it's easier to cope with SC16 data
   //than to alter the output lengths so the output is S16
+  //if you're going to pack things, you'll have to register the data somehow
+  //TODO do you need a round-and-clip here?
+  //OH, I see, the magnitude is 16 bit unsigned. we want 16 bit signed...
+  //so yes, we round and clip that last bit.
+
+  wire [31:0] mag_out_tdata;
+  assign mag_out_tdata = {1'b0, magnitude_axis_data_tdata[15:0], 15'b0};
+
   wire [31:0] sc16_magnitude_axis_data_tdata;
   wire [31:0] sc16_phase_axis_data_tdata;
-  assign sc16_magnitude_axis_data_tdata = {magnitude_axis_data_tdata, 16'b0};
+
+  wire mag_round_data_tlast, mag_round_data_tvalid, mag_round_data_tready;
+
+  axi_round_and_clip #(.WIDTH_IN(32), .WIDTH_OUT(16), .CLIP_BITS(1))
+    round_and_clip (
+       .clk(ce_clk),
+       .reset(ce_rst),
+       .i_tdata(mag_out_tdata),
+       .i_tlast(magnitude_axis_data_tlast),
+       .i_tvalid(magnitude_axis_data_tvalid),
+       .i_tready(magnitude_axis_data_tready),
+       .o_tdata(sc16_magnitude_axis_data_tdata[31:16]),
+       .o_tlast(mag_round_data_tlast),
+       .o_tvalid(mag_round_data_tvalid),
+       .o_tready(mag_round_data_tready));
+
+  assign sc16_magnitude_axis_data_tdata[15:0] = {16'b0};
   assign sc16_phase_axis_data_tdata = {phase_axis_data_tdata, 16'b0};
 
   //we split the tuser fifo into two outputs to buffer the CHDR data
@@ -201,7 +227,7 @@ module noc_block_envelope #(
   tuser_splitter (
     .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
     .i_tdata(m_axis_data_tuser), .i_tlast(1'b0), .i_tvalid(m_axis_data_tvalid & m_axis_data_tlast), .i_tready(),
-    .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(magnitude_axis_data_tlast & magnitude_axis_data_tready),
+    .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(mag_round_data_tlast & mag_round_data_tready),
     .o1_tdata(out_tuser_pre[1]), .o1_tlast(), .o1_tvalid(), .o1_tready(phase_axis_data_tlast & phase_axis_data_tready),
     .o2_tready(1'b1), .o3_tready(1'b1));
 
@@ -216,9 +242,9 @@ module noc_block_envelope #(
       .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
       .i_tdata(sc16_magnitude_axis_data_tdata),
       .i_tuser(out_tuser[0]),
-      .i_tlast(magnitude_axis_data_tlast),
-      .i_tvalid(magnitude_axis_data_tvalid),
-      .i_tready(magnitude_axis_data_tready),
+      .i_tlast(mag_round_data_tlast),
+      .i_tvalid(mag_round_data_tvalid),
+      .i_tready(mag_round_data_tready),
       .o_tdata(str_src_tdata[63:0]),
       .o_tlast(str_src_tlast[0]),
       .o_tvalid(str_src_tvalid[0]),
@@ -245,7 +271,7 @@ module noc_block_envelope #(
   // Readback register values
   always @*
     case(rb_addr)
-      default : rb_data <= 64'h0BADC0DE0BADC0DE;
+      default : rb_data <= 64'hBEEEEEEEEEEEEEEF;
     endcase
 
 endmodule
