@@ -233,8 +233,8 @@ module noc_block_envelope #(
 
   //...and munge the SRC SID so that it comes from two block ports
   //TODO alter length, if you're going to pack things
-  assign out_tuser[0] = { out_tuser_pre[0][127:96], out_tuser_pre[0][79:68], 4'b0000, next_destination[0], out_tuser_pre[0][63:0] };
-  assign out_tuser[1] = { out_tuser_pre[1][127:96], out_tuser_pre[1][79:68], 4'b0001, next_destination[1], out_tuser_pre[1][63:0] };
+  assign out_tuser[0] = { out_tuser_pre[0][127:96], out_tuser_pre[0][79:68], 4'b0000, next_dst[0], out_tuser_pre[0][63:0] };
+  assign out_tuser[1] = { out_tuser_pre[1][127:96], out_tuser_pre[1][79:68], 4'b0001, next_dst[1], out_tuser_pre[1][63:0] };
 
   chdr_framer #(
       .SIZE(10))
