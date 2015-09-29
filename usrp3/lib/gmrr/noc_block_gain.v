@@ -45,7 +45,7 @@ module noc_block_gain #(
   wire rb_addr;
 
   //gain to multiply by
-  wire [15:0] gain;
+  (* mark_debug = "true" *) wire [15:0] gain;
 
   // RFNoC Shell
   wire [31:0] set_data;
@@ -59,7 +59,8 @@ module noc_block_gain #(
   wire str_src_tlast, str_src_tvalid, str_src_tready;
 
   // AXI Wrapper
-  wire [31:0]  m_axis_data_tdata, s_axis_data_tdata;
+  (* mark_debug = "true" *) wire [31:0]  m_axis_data_tdata;
+  (* mark_debug = "true" *) wire [31:0]  s_axis_data_tdata;
   wire [127:0] m_axis_data_tuser;
   wire m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
   wire s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
@@ -194,14 +195,16 @@ module noc_block_gain #(
     .m_axis_config_tvalid(),
     .m_axis_config_tready(1'b1));
 
-  wire [23:0] mult_tdata;
+  (* mark_debug = "true" *) wire [63:0] mult_tdata;
   wire mult_tready, mult_tvalid, mult_tlast;
   wire cplx_tready, real_tready;
 
+  //natively this will treat the gain register as a fractional value.
+  //mult.v pads the upper 5 bits of A with 5'b0, so we add 5 bits to the output
   mult_rc #(.WIDTH_REAL(16),
          .WIDTH_CPLX(16),
-         .WIDTH_P(24),
-         .DROP_TOP_P(0),
+         .WIDTH_P(26),
+         .DROP_TOP_P(10),
          .LATENCY(4),
          .CASCADE_OUT(0)) inst_mult (
       .clk(ce_clk),
@@ -219,10 +222,11 @@ module noc_block_gain #(
       .p_tvalid(mult_tvalid),
       .p_tready(mult_tready));
 
+  //looks like i'm six bits short. why?
   axi_round_and_clip_complex #(
-      .WIDTH_IN(24),
+      .WIDTH_IN(26),
       .WIDTH_OUT(16),
-      .CLIP_BITS(2),
+      .CLIP_BITS(2), //has nothing to do with scaling
       .FIFOSIZE(0)) inst_round (
    .clk(ce_clk),
    .reset(ce_rst),

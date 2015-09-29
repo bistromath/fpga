@@ -59,7 +59,7 @@ module noc_block_envelope #(
 
   // AXI Wrapper
   // input (sink) data
-  wire [31:0]  m_axis_data_tdata;
+  (* mark_debug = "true" *) wire [31:0]  m_axis_data_tdata;
   wire [127:0] m_axis_data_tuser;
   wire m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
 
@@ -147,15 +147,14 @@ module noc_block_envelope #(
 
 
   wire [31:0] magphase_axis_data_tdata;
-  wire magphase_axis_data_tdata;
   wire magphase_axis_data_tlast;
   wire magphase_axis_data_tready;
   wire magphase_axis_data_tvalid;
-  wire [15:0] magnitude_axis_data_tdata;
+  (* mark_debug = "true" *) wire [15:0] magnitude_axis_data_tdata;
   wire magnitude_axis_data_tlast;
   wire magnitude_axis_data_tready;
   wire magnitude_axis_data_tvalid;
-  wire [15:0] phase_axis_data_tdata;
+  (* mark_debug = "true" *) wire [15:0] phase_axis_data_tdata;
   wire phase_axis_data_tlast;
   wire phase_axis_data_tready;
   wire phase_axis_data_tvalid;
@@ -179,14 +178,14 @@ module noc_block_envelope #(
      .i_tlast(magphase_axis_data_tlast),
      .i_tvalid(magphase_axis_data_tvalid),
      .i_tready(magphase_axis_data_tready),
-     .oi_tdata(magnitude_axis_data_tdata),
-     .oi_tlast(magnitude_axis_data_tlast),
-     .oi_tvalid(magnitude_axis_data_tvalid),
-     .oi_tready(magnitude_axis_data_tready),
-     .oq_tdata(phase_axis_data_tdata),
-     .oq_tlast(phase_axis_data_tlast),
-     .oq_tvalid(phase_axis_data_tvalid),
-     .oq_tready(phase_axis_data_tready));
+     .oq_tdata(magnitude_axis_data_tdata),
+     .oq_tlast(magnitude_axis_data_tlast),
+     .oq_tvalid(magnitude_axis_data_tvalid),
+     .oq_tready(magnitude_axis_data_tready),
+     .oi_tdata(phase_axis_data_tdata),
+     .oi_tlast(phase_axis_data_tlast),
+     .oi_tvalid(phase_axis_data_tvalid),
+     .oi_tready(phase_axis_data_tready));
 
 
   //pack them back into SC16 output streams.
@@ -197,11 +196,11 @@ module noc_block_envelope #(
   //OH, I see, the magnitude is 16 bit unsigned. we want 16 bit signed...
   //so yes, we round and clip that last bit.
 
-  wire [31:0] mag_out_tdata;
+  (* mark_debug = "true" *) wire [31:0] mag_out_tdata;
   assign mag_out_tdata = {1'b0, magnitude_axis_data_tdata[15:0], 15'b0};
 
-  wire [31:0] sc16_magnitude_axis_data_tdata;
-  wire [31:0] sc16_phase_axis_data_tdata;
+  (* mark_debug = "true" *) wire [31:0] sc16_magnitude_axis_data_tdata;
+  (* mark_debug = "true" *) wire [31:0] sc16_phase_axis_data_tdata;
 
   wire mag_round_data_tlast, mag_round_data_tvalid, mag_round_data_tready;
 
