@@ -52,7 +52,7 @@
     .o_tdata(ce_i_tdata[4]), .o_tlast(ce_i_tlast[4]), .o_tvalid(ce_i_tvalid[4]), .o_tready(ce_i_tready[4]),
     .debug(ce_debug[4]));
 
-  noc_block_split_stream inst_noc_block_split_stream_0 (
+  noc_block_loopbacksplit inst_noc_block_loopbacksplit_0 (
     .bus_clk(bus_clk), .bus_rst(bus_rst),
     .ce_clk(ce_clk), .ce_rst(ce_rst),
     .i_tdata(ce_o_tdata[5]), .i_tlast(ce_o_tlast[5]), .i_tvalid(ce_o_tvalid[5]), .i_tready(ce_o_tready[5]),
