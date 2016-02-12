@@ -51,7 +51,7 @@ module delay_better
            else
              if(i_tvalid & o_tready) begin
                delay_count <= delay_count - 1;
-               last_sample <= i_tdata;
+/*               last_sample <= i_tdata; */
            end
          end
          STATE_DELAY: begin // delay means we're producing, but not consuming.

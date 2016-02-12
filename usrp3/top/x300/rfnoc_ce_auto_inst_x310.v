@@ -66,24 +66,32 @@
     .o_tdata(ce_i_tdata[6]), .o_tlast(ce_i_tlast[6]), .o_tvalid(ce_i_tvalid[6]), .o_tready(ce_i_tready[6]),
     .debug(ce_debug[6]));
 
-  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(10)) inst_noc_block_delay_0 (
+  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(4)) inst_noc_block_delay_0 (
     .bus_clk(bus_clk), .bus_rst(bus_rst),
     .ce_clk(ce_clk), .ce_rst(ce_rst),
     .i_tdata(ce_o_tdata[7]), .i_tlast(ce_o_tlast[7]), .i_tvalid(ce_o_tvalid[7]), .i_tready(ce_o_tready[7]),
     .o_tdata(ce_i_tdata[7]), .o_tlast(ce_i_tlast[7]), .o_tvalid(ce_i_tvalid[7]), .o_tready(ce_i_tready[7]),
     .debug(ce_debug[7]));
 
-  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(4)) inst_noc_block_delay_1 (
+  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(10)) inst_noc_block_delay_1 (
     .bus_clk(bus_clk), .bus_rst(bus_rst),
     .ce_clk(ce_clk), .ce_rst(ce_rst),
     .i_tdata(ce_o_tdata[8]), .i_tlast(ce_o_tlast[8]), .i_tvalid(ce_o_tvalid[8]), .i_tready(ce_o_tready[8]),
     .o_tdata(ce_i_tdata[8]), .o_tlast(ce_i_tlast[8]), .o_tvalid(ce_i_tvalid[8]), .o_tready(ce_i_tready[8]),
     .debug(ce_debug[8]));
 
+  noc_block_keep_one_in_n inst_noc_keep_one_in_n (
+    .bus_clk(bus_clk), .bus_rst(bus_rst),
+    .ce_clk(ce_clk), .ce_rst(ce_rst),
+    .i_tdata(ce_o_tdata[9]), .i_tlast(ce_o_tlast[9]), .i_tvalid(ce_o_tvalid[9]), .i_tready(ce_o_tready[9]),
+    .o_tdata(ce_i_tdata[9]), .o_tlast(ce_i_tlast[9]), .o_tvalid(ce_i_tvalid[9]), .o_tready(ce_i_tready[9]),
+    .debug(ce_debug[9]));
+
+
   // Fill remaining crossbar ports with loopback FIFOs
   genvar n;
   generate
-    for (n = 9; n < NUM_CE; n = n + 1) begin
+    for (n = 10; n < NUM_CE; n = n + 1) begin
       noc_block_axi_fifo_loopback inst_noc_block_axi_fifo_loopback (
         .bus_clk(bus_clk), .bus_rst(bus_rst),
         .ce_clk(ce_clk), .ce_rst(ce_rst),

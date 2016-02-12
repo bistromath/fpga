@@ -13,7 +13,7 @@
 //`default_nettype none
 module noc_block_delay #(
   parameter NOC_ID = 64'h64656C6179000000,
-  parameter STR_SINK_FIFOSIZE = 11,
+  parameter STR_SINK_FIFOSIZE = 12,
   parameter MAX_DIFF_DELAY_LOG2 = 10, //maximum differential delay between I and Q
   parameter MAX_DELAY_LOG2 = 16) //maximum delay (no FIFO so no performance impact here)
                                  //NB: don't set |delay_i-delay_q| > 2**MAX_DIFF_DELAY_LOG2
@@ -39,10 +39,10 @@ module noc_block_delay #(
   wire [63:0] cmdout_tdata, ackin_tdata;
   wire        cmdout_tlast, cmdout_tvalid, cmdout_tready, ackin_tlast, ackin_tvalid, ackin_tready;
 
-  wire [63:0] str_sink_tdata;
-  wire        str_sink_tlast, str_sink_tvalid, str_sink_tready;
-  wire [63:0] str_src_tdata;
-  wire        str_src_tlast, str_src_tvalid, str_src_tready;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire [63:0] str_sink_tdata;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire        str_sink_tlast, str_sink_tvalid, str_sink_tready;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire [63:0] str_src_tdata;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire        str_src_tlast, str_src_tvalid, str_src_tready;
 
   wire [15:0] src_sid;
   wire [15:0] next_dst_sid;
@@ -93,16 +93,16 @@ module noc_block_delay #(
   // Convert RFNoC Shell interface into AXI stream interface
   //
   ////////////////////////////////////////////////////////////
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0]  m_axis_data_tdata;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tlast;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tvalid;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tready;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire [31:0]  m_axis_data_tdata;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire         m_axis_data_tlast;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire         m_axis_data_tvalid;
+  /* (* keep = "true",dont_touch="true",mark_debug="true" *) */ wire         m_axis_data_tready;
   wire [127:0] m_axis_data_tuser;
 
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0]  s_axis_data_tdata;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tlast;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tvalid;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tready;
+  wire [31:0]  s_axis_data_tdata;
+  wire         s_axis_data_tlast;
+  wire         s_axis_data_tvalid;
+  wire         s_axis_data_tready;
   wire [127:0] s_axis_data_tuser;
 
   //if we want to handle seqnum manually (because we're generating our own packets),
@@ -114,7 +114,7 @@ module noc_block_delay #(
     .o_tdata(m_axis_data_tdata), .o_tuser(), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
 
   chdr_framer #(.SIZE(11), .USE_SEQ_NUM(0)) inst_chdr_framer(
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
     .i_tdata(s_axis_data_tdata), .i_tuser(s_axis_data_tuser), .i_tlast(s_axis_data_tlast), .i_tvalid(s_axis_data_tvalid), .i_tready(s_axis_data_tready),
     .o_tdata(str_src_tdata), .o_tlast(str_src_tlast), .o_tvalid(str_src_tvalid), .o_tready(str_src_tready));
 
@@ -122,13 +122,14 @@ module noc_block_delay #(
   //we have to use a split with FIFO because there's no guarantee our path
   //delays match
 
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] i_data_tdata, fuckery;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire i_data_tlast, i_data_tvalid, i_data_tready;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] q_data_tdata;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire q_data_tlast, q_data_tvalid, q_data_tready;
+  wire [15:0] i_data_tdata, fuckery;
+  wire i_data_tlast, i_data_tvalid, i_data_tready;
+  wire [15:0] q_data_tdata;
+  wire q_data_tlast, q_data_tvalid, q_data_tready;
 
-  split_stream #(
+  split_stream_fifo #(
     .WIDTH(32),
+    .FIFO_SIZE(MAX_DIFF_DELAY_LOG2),
     .ACTIVE_MASK(4'b0011))
   split_stream_fifo_inst(
     .clk(ce_clk),
@@ -146,13 +147,13 @@ module noc_block_delay #(
     .o1_tvalid(q_data_tvalid),
     .o1_tready(q_data_tready));
 
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] delayed_i_tdata;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire delayed_i_tlast, delayed_i_tvalid, delayed_i_tready;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] delayed_q_tdata;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire delayed_q_tlast, delayed_q_tvalid, delayed_q_tready;
+  wire [15:0] delayed_i_tdata;
+  wire delayed_i_tlast, delayed_i_tvalid, delayed_i_tready;
+  wire [15:0] delayed_q_tdata;
+  wire delayed_q_tlast, delayed_q_tvalid, delayed_q_tready;
 
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0] delay_i;
-  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0] delay_q;
+  wire [31:0] delay_i;
+  wire [31:0] delay_q;
 
   delay_better #(
     .WIDTH(16),
@@ -197,19 +198,19 @@ module noc_block_delay #(
   wire [31:0] joined_tdata;
   wire joined_tvalid, joined_tlast, joined_tready;
 
-  axi_fifo #(.WIDTH(17), .SIZE(MAX_DELAY_LOG2)) i_buffer (
+  axi_fifo #(.WIDTH(17), .SIZE(MAX_DIFF_DELAY_LOG2)) i_buffer (
     .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
     .i_tdata({delayed_i_tlast, delayed_i_tdata}), .i_tvalid(delayed_i_tvalid), .i_tready(delayed_i_tready),
     .o_tdata({buffered_i_tlast, buffered_i_tdata}), .o_tvalid(buffered_i_tvalid), .o_tready(buffered_i_tready));
 
-  axi_fifo #(.WIDTH(17), .SIZE(MAX_DELAY_LOG2)) q_buffer (
+  axi_fifo #(.WIDTH(17), .SIZE(MAX_DIFF_DELAY_LOG2)) q_buffer (
     .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
     .i_tdata({delayed_q_tlast, delayed_q_tdata}), .i_tvalid(delayed_q_tvalid), .i_tready(delayed_q_tready),
     .o_tdata({buffered_q_tlast, buffered_q_tdata}), .o_tvalid(buffered_q_tvalid), .o_tready(buffered_q_tready));
 
-  wire all_here = buffered_i_tvalid & buffered_q_tvalid;
-  wire int_tvalid = all_here;
-  wire int_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire all_here = buffered_i_tvalid & buffered_q_tvalid;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire int_tvalid = all_here;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire int_tready;
   assign buffered_i_tready = int_tready & all_here;
   assign buffered_q_tready = int_tready & all_here;
 
@@ -234,7 +235,9 @@ module noc_block_delay #(
   localparam [7:0] SR_PKT_SIZE = SR_USER_REG_BASE + 8'd3;
 
   //we aren't using m_axis_data_tuser at all, since we're regenerating the len and seqnums anyway.
-  wire [127:0] new_tuser = {4'b0000, 12'b0, 16'd0, src_sid, next_dst_sid, 64'b0 };
+  //SUPER HELPFULLY, the packet_resizer mangles the fucking tuser SRC and DST fields for you
+  //SUPER HELPFUL GUYS, THANKS A LOT
+  wire [127:0] new_tuser = {4'b0000, 12'b0, 16'd0, src_sid, src_sid, 64'b0 };
   packet_resizer #(.SR_PKT_SIZE(SR_PKT_SIZE)) inst_packet_resizer(
     .clk(ce_clk),
     .reset(ce_rst),
@@ -250,6 +253,7 @@ module noc_block_delay #(
     .o_tvalid(s_axis_data_tvalid),
     .o_tready(s_axis_data_tready),
     .o_tuser(s_axis_data_tuser));
+
 
   ////////////////////////////////////////////////////////////
   //

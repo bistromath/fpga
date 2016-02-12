@@ -8,14 +8,14 @@
 
 module noc_block_delay_tb();
   `TEST_BENCH_INIT("noc_block_delay",`NUM_TEST_CASES,`NS_PER_TICK);
-  localparam BUS_CLK_PERIOD = $ceil(1e9/166.67e6);
+  localparam BUS_CLK_PERIOD = $ceil(1e9/214e6);
   localparam CE_CLK_PERIOD  = $ceil(1e9/200e6);
   localparam NUM_CE         = 1;  // Number of Computation Engines / User RFNoC blocks to simulate
   localparam NUM_STREAMS    = 1;  // Number of test bench streams
   `RFNOC_SIM_INIT(NUM_CE, NUM_STREAMS, BUS_CLK_PERIOD, CE_CLK_PERIOD);
   `RFNOC_ADD_BLOCK(noc_block_delay, 0);
 
-  localparam SPP = 32; // Samples per packet
+  localparam SPP = 1996; // Samples per packet
 
   /********************************************************
   ** Verification
@@ -101,10 +101,6 @@ module noc_block_delay_tb();
 
     /********************************************************
     ** Test 5 -- Un-delay everything, test advance.
-    **           Note that, because of the way tlast
-    **           was handled, we got the whole packet
-    **           last time (i.e., SPP>600). So this time
-    **           there's nothing left in the pipeline.
     ********************************************************/
     `TEST_CASE_START("Test sequence -- undelay");
     tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_DELAY_I, 32'd0);
@@ -115,7 +111,6 @@ module noc_block_delay_tb();
         for (int i = 0; i < SPP/2; i++) begin
           send_payload.push_back({16'(i*2), 16'(i*2), 16'(i*2+1), 16'(i*2+1)});
         end
-        tb_streamer.send(send_payload);
         tb_streamer.send(send_payload);
       end
       begin

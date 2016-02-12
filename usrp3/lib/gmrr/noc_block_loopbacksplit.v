@@ -53,7 +53,7 @@ module noc_block_loopbacksplit #(
     .set_data({set_data[1], set_data[0]}),
     .set_addr({set_addr[1], set_addr[0]}),
     .set_stb({set_stb[1], set_stb[0]}),
-    .rb_stb(2'b1),
+    .rb_stb(2'b11),
     .rb_data({rb_data[1], rb_data[0]}),
     .rb_addr({rb_addr[1], rb_addr[0]}),
     // Control Source
@@ -114,7 +114,7 @@ module noc_block_loopbacksplit #(
      .header_in(m_axis_data_tuser),
      .header_out(s_axis_data_tuser[1]),
      .use_pkt_type(1'b0),  .pkt_type(),
-     .use_has_time(1'b1),  .has_time(1'b0), //ALSO strip timestamps!
+     .use_has_time(1'b0),  .has_time(1'b0),
      .use_eob(1'b0),       .eob(),
      .use_seqnum(1'b0),    .seqnum(),
      .use_length(1'b0),    .length(),
