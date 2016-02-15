@@ -37,14 +37,16 @@ module delay_better
          STATE_WAITING_FOR_FIRST_INPUT: begin
            if(i_tvalid & o_tready) begin
              last_sample <= i_tdata;
-             if(len>0)
+             if(len>0) begin
                state <= STATE_DELAY;
+	       delay_count <= 1;
+             end
              else
                state <= STATE_RUNNING;
            end
          end
          STATE_ADVANCE: begin //advance means we're consuming, but not producing.
-           if(delay_count <= len)
+           if(delay_count == len)
              state <= STATE_RUNNING;
            else
              if(i_tvalid & o_tready) begin
@@ -53,7 +55,7 @@ module delay_better
            end
          end
          STATE_DELAY: begin // delay means we're producing, but not consuming.
-           if(delay_count >= len)
+           if(delay_count == len)
              state <= STATE_RUNNING;
            else
              if(o_tvalid & o_tready)
@@ -82,9 +84,10 @@ module delay_better
    assign o_tdata = (state == STATE_DELAY) ? last_sample : i_tdata;
    assign o_tlast = (state == STATE_DELAY) ? 1'b0 : i_tlast; //FIXME
    assign o_tvalid = (i_tvalid & (state == STATE_RUNNING))
-                   | (state == STATE_DELAY);
-   assign i_tready = (o_tready & (state == STATE_RUNNING))
-                   | (state == STATE_ADVANCE)
-                   | (state == STATE_WAITING_FOR_FIRST_INPUT);
+                   | (state == STATE_DELAY)
+                   | ((state == STATE_ADVANCE) & delay_count == len)
+                   | (i_tvalid & o_tready & (state == STATE_WAITING_FOR_FIRST_INPUT));
+   assign i_tready = (o_tready & (state == STATE_RUNNING | state == STATE_WAITING_FOR_FIRST_INPUT))
+                   | (state == STATE_ADVANCE);
 
 endmodule // delay_better

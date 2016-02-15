@@ -15,7 +15,7 @@ module noc_block_delay_tb();
   `RFNOC_SIM_INIT(NUM_CE, NUM_STREAMS, BUS_CLK_PERIOD, CE_CLK_PERIOD);
   `RFNOC_ADD_BLOCK(noc_block_delay, 0);
 
-  localparam SPP = 600; // Samples per packet
+  localparam SPP = 32; // Samples per packet
 
   /********************************************************
   ** Verification
@@ -55,9 +55,11 @@ module noc_block_delay_tb();
     ** Test 4 -- Write / readback user registers
     ********************************************************/
     `TEST_CASE_START("Write / readback user registers");
-    idelay = 32'd32;
-    qdelay = 32'd16;
+    idelay = 32'd7;
+    qdelay = 32'd0;
     tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_DELAY_I, idelay);
+    tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_PKT_SIZE, SPP*4);
+    tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_ENABLE_DIFF, 32'd1);
     tb_streamer.read_user_reg(sid_noc_block_delay, 0, readback);
     $sformat(s, "User register 0 incorrect readback! Expected: %0d, Actual %0d", readback[31:0], idelay);
     `ASSERT_ERROR(readback[31:0] == idelay, s);
@@ -113,6 +115,7 @@ module noc_block_delay_tb();
         for (int i = 0; i < SPP/2; i++) begin
           send_payload.push_back({16'(i*2), 16'(i*2), 16'(i*2+1), 16'(i*2+1)});
         end
+        tb_streamer.send(send_payload);
         tb_streamer.send(send_payload);
       end
       begin

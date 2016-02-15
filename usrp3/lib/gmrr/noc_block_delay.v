@@ -10,6 +10,7 @@
 // at this more closely).
 // 
 //
+//`default_nettype none
 module noc_block_delay #(
   parameter NOC_ID = 64'h64656C6179000000,
   parameter STR_SINK_FIFOSIZE = 11,
@@ -104,39 +105,18 @@ module noc_block_delay #(
   (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tready;
   wire [127:0] s_axis_data_tuser;
 
-  axi_wrapper #(
-    .SIMPLE_MODE(1))
-  axi_wrapper_inst (
-    .clk(ce_clk),
-    .reset(ce_rst),
-    // RFNoC Shell
-    .clear_tx_seqnum(clear_tx_seqnum),
-    .next_dst(next_dst_sid),
-    .set_stb(set_stb),
-    .set_addr(set_addr),
-    .set_data(set_data),
-    .i_tdata(str_sink_tdata),
-    .i_tlast(str_sink_tlast),
-    .i_tvalid(str_sink_tvalid),
-    .i_tready(str_sink_tready),
-    .o_tdata(str_src_tdata),
-    .o_tlast(str_src_tlast),
-    .o_tvalid(str_src_tvalid),
-    .o_tready(str_src_tready),
-    // Internal AXI streams
-    .m_axis_data_tdata(m_axis_data_tdata),
-    .m_axis_data_tuser(m_axis_data_tuser),
-    .m_axis_data_tlast(m_axis_data_tlast),
-    .m_axis_data_tvalid(m_axis_data_tvalid),
-    .m_axis_data_tready(m_axis_data_tready),
-    .s_axis_data_tdata(s_axis_data_tdata),
-    .s_axis_data_tlast(s_axis_data_tlast),
-    .s_axis_data_tvalid(s_axis_data_tvalid),
-    .s_axis_data_tready(s_axis_data_tready),
-    .m_axis_config_tdata(),
-    .m_axis_config_tlast(),
-    .m_axis_config_tvalid(),
-    .m_axis_config_tready(1'b1));
+  //if we want to handle seqnum manually (because we're generating our own packets),
+  //we can't use the axi_wrapper (it forces 1-to-1 seqnum in chdr_framer). so we have
+  //to use chdr_deframer and chdr_framer.
+  chdr_deframer inst_chdr_deframer (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata(str_sink_tdata), .i_tlast(str_sink_tlast), .i_tvalid(str_sink_tvalid), .i_tready(str_sink_tready),
+    .o_tdata(m_axis_data_tdata), .o_tuser(), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
+
+  chdr_framer #(.SIZE(11), .USE_SEQ_NUM(0)) inst_chdr_framer(
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata(s_axis_data_tdata), .i_tuser(s_axis_data_tuser), .i_tlast(s_axis_data_tlast), .i_tvalid(s_axis_data_tvalid), .i_tready(s_axis_data_tready),
+    .o_tdata(str_src_tdata), .o_tlast(str_src_tlast), .o_tvalid(str_src_tvalid), .o_tready(str_src_tready));
 
   //now here we split, instantiate two delays, apply, and recombine
   //we have to use a split with FIFO because there's no guarantee our path
@@ -147,9 +127,8 @@ module noc_block_delay #(
   (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] q_data_tdata;
   (* keep = "true",dont_touch="true",mark_debug="true" *) wire q_data_tlast, q_data_tvalid, q_data_tready;
 
-  split_stream_fifo #(
+  split_stream #(
     .WIDTH(32),
-    .FIFO_SIZE(MAX_DIFF_DELAY_LOG2),
     .ACTIVE_MASK(4'b0011))
   split_stream_fifo_inst(
     .clk(ce_clk),
@@ -211,51 +190,72 @@ module noc_block_delay #(
     .max_spp(16'b0));
 
   wire [15:0] buffered_i_tdata;
-  wire buffered_i_tlast, buffered_i_tvalid;
+  wire buffered_i_tvalid, buffered_i_tlast, buffered_i_tready;
   wire [15:0] buffered_q_tdata;
-  wire buffered_q_tlast, buffered_q_tvalid;
+  wire buffered_q_tvalid, buffered_q_tlast, buffered_q_tready;
 
-  axi_fifo #(
-    .WIDTH(17),
-    .SIZE(MAX_DIFF_DELAY_LOG2))
-    i_fifo(
+  wire [31:0] joined_tdata;
+  wire joined_tvalid, joined_tlast, joined_tready;
+
+  axi_fifo #(.WIDTH(17), .SIZE(MAX_DELAY_LOG2)) i_buffer (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata({delayed_i_tlast, delayed_i_tdata}), .i_tvalid(delayed_i_tvalid), .i_tready(delayed_i_tready),
+    .o_tdata({buffered_i_tlast, buffered_i_tdata}), .o_tvalid(buffered_i_tvalid), .o_tready(buffered_i_tready));
+
+  axi_fifo #(.WIDTH(17), .SIZE(MAX_DELAY_LOG2)) q_buffer (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata({delayed_q_tlast, delayed_q_tdata}), .i_tvalid(delayed_q_tvalid), .i_tready(delayed_q_tready),
+    .o_tdata({buffered_q_tlast, buffered_q_tdata}), .o_tvalid(buffered_q_tvalid), .o_tready(buffered_q_tready));
+
+  wire all_here = buffered_i_tvalid & buffered_q_tvalid;
+  wire int_tvalid = all_here;
+  wire int_tready;
+  assign buffered_i_tready = int_tready & all_here;
+  assign buffered_q_tready = int_tready & all_here;
+
+  //just to join the two streams
+  axi_fifo_flop #(
+    .WIDTH(33))
+    out_fifo(
       .clk(ce_clk), .reset(ce_rst),
-      .i_tdata({delayed_i_tlast, delayed_i_tdata}),
-      .i_tvalid(delayed_i_tvalid),
-      .i_tready(delayed_i_tready),
-      .o_tdata({buffered_i_tlast, buffered_i_tdata}),
-      .o_tvalid(buffered_i_tvalid),
-      .o_tready(s_axis_data_tready & buffered_q_tvalid));
+      .i_tdata({buffered_i_tlast | buffered_q_tlast, buffered_i_tdata, buffered_q_tdata}),
+      .i_tvalid(int_tvalid),
+      .i_tready(int_tready),
+      .o_tdata({joined_tlast, joined_tdata}),
+      .o_tvalid(joined_tvalid),
+      .o_tready(joined_tready));
 
-  axi_fifo #(
-    .WIDTH(17),
-    .SIZE(MAX_DIFF_DELAY_LOG2))
-    q_fifo(
-      .clk(ce_clk), .reset(ce_rst),
-      .i_tdata({delayed_q_tlast, delayed_q_tdata}),
-      .i_tvalid(delayed_q_tvalid),
-      .i_tready(delayed_q_tready),
-      .o_tdata({buffered_q_tlast, buffered_q_tdata}),
-      .o_tvalid(buffered_q_tvalid),
-      .o_tready(s_axis_data_tready & buffered_i_tvalid));
+  // NoC Shell registers 0 - 127,
+  // User register address space starts at 128
+  localparam SR_USER_REG_BASE = 128;
+  localparam [7:0] SR_DELAY_I = SR_USER_REG_BASE;
+  localparam [7:0] SR_DELAY_Q = SR_USER_REG_BASE + 8'd1;
+  localparam [7:0] SR_ENABLE_DIFF = SR_USER_REG_BASE + 8'd2;
+  localparam [7:0] SR_PKT_SIZE = SR_USER_REG_BASE + 8'd3;
 
-  assign s_axis_data_tdata = {buffered_i_tdata, buffered_q_tdata};
-  assign s_axis_data_tlast = buffered_i_tlast | buffered_q_tlast;
-  assign s_axis_data_tvalid = buffered_i_tvalid & buffered_q_tvalid;
-  //so, the data is valid if both FIFOs have valid data to clock in
-  //but one of these tvalids is going to go high before the other,
-  //and we need to prevent the fifos from pushing until there's data
-  //on both. so, we're going to do something strange, and make the fifo
-  //output tready depend on the OTHER fifo tvalid.
+  //we aren't using m_axis_data_tuser at all, since we're regenerating the len and seqnums anyway.
+  wire [127:0] new_tuser = {4'b0000, 12'b0, 16'd0, src_sid, next_dst_sid, 64'b0 };
+  packet_resizer #(.SR_PKT_SIZE(SR_PKT_SIZE)) inst_packet_resizer(
+    .clk(ce_clk),
+    .reset(ce_rst),
+    .next_dst_sid(next_dst_sid),
+    .set_stb(set_stb), .set_addr(set_addr), .set_data(set_data),
+    .i_tdata(joined_tdata),
+    .i_tlast(1'b0),
+    .i_tvalid(joined_tvalid),
+    .i_tready(joined_tready),
+    .i_tuser(new_tuser),
+    .o_tdata(s_axis_data_tdata),
+    .o_tlast(s_axis_data_tlast),
+    .o_tvalid(s_axis_data_tvalid),
+    .o_tready(s_axis_data_tready),
+    .o_tuser(s_axis_data_tuser));
 
   ////////////////////////////////////////////////////////////
   //
   // User code
   //
   ////////////////////////////////////////////////////////////
-  // NoC Shell registers 0 - 127,
-  // User register address space starts at 128
-  localparam SR_USER_REG_BASE = 128;
 
   // Control Source Unused
   assign cmdout_tdata  = 64'd0;
@@ -287,9 +287,6 @@ module noc_block_delay #(
   //               _____
   //   rb_stb  ___|     |________________     (Invalid / ignored, same cycle as set_stb)
   //
-  localparam [7:0] SR_DELAY_I = SR_USER_REG_BASE;
-  localparam [7:0] SR_DELAY_Q = SR_USER_REG_BASE + 8'd1;
-  localparam [7:0] SR_ENABLE_DIFF = SR_USER_REG_BASE + 8'd2;
 
   setting_reg #(
     .my_addr(SR_DELAY_I), .awidth(8), .width(32))
@@ -321,3 +318,4 @@ module noc_block_delay #(
   end
 
 endmodule
+`default_nettype wire
