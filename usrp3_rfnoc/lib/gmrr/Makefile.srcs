@@ -12,6 +12,7 @@ noc_block_loopbacksplit.v \
 noc_block_mult.v \
 noc_block_magphase_gain.v \
 noc_block_predistort.v \
+delay_better.v \
 predistort.v \
 ram_to_fifo_next.v \
 ram_2port_next.v \
