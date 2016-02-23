@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 `define NS_PER_TICK 1
-`define NUM_TEST_CASES 6
+`define NUM_TEST_CASES 7
 
 `include "sim_exec_report.vh"
 `include "sim_clks_rsts.vh"
@@ -107,6 +107,35 @@ module noc_block_delay_tb();
     `TEST_CASE_START("Test sequence -- undelay");
     tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_DELAY_I, 32'd0);
     tb_streamer.write_user_reg(sid_noc_block_delay, noc_block_delay.SR_DELAY_Q, 32'd0);
+    fork
+      begin
+        cvita_payload_t send_payload;
+        for (int i = 0; i < SPP/2; i++) begin
+          send_payload.push_back({16'(i*2), 16'(i*2), 16'(i*2+1), 16'(i*2+1)});
+        end
+        tb_streamer.send(send_payload);
+      end
+      begin
+        cvita_payload_t recv_payload;
+        cvita_metadata_t md;
+        logic [63:0] expected_value;
+        integer expected_i0, expected_q0;
+        $display("Receiving on DATA port");
+        tb_streamer.recv(recv_payload,md, 0);
+        for (int i = 0; i < SPP/2; i++) begin
+          expected_i0 = i*2+idelay;
+          expected_q0 = i*2+qdelay;
+          expected_value = {16'(expected_i0),
+                            16'(expected_q0),
+                            16'(expected_i0+1),
+                            16'(expected_q0+1)};
+          $sformat(s, "Incorrect value received! Expected: %0x, Received: %0x", expected_value, recv_payload[i]);
+          `ASSERT_ERROR(recv_payload[i] == expected_value, s);
+        end
+      end
+    join
+    `TEST_CASE_DONE(1);
+    `TEST_CASE_START("Test sequence -- another one for good luck");
     fork
       begin
         cvita_payload_t send_payload;

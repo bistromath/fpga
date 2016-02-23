@@ -12,7 +12,7 @@
 //
 module noc_block_delay #(
   parameter NOC_ID = 64'h64656C6179000000,
-  parameter STR_SINK_FIFOSIZE = 10,
+  parameter STR_SINK_FIFOSIZE = 11,
   parameter MAX_DIFF_DELAY_LOG2 = 10, //maximum differential delay between I and Q
   parameter MAX_DELAY_LOG2 = 16) //maximum delay (no FIFO so no performance impact here)
                                  //NB: don't set |delay_i-delay_q| > 2**MAX_DIFF_DELAY_LOG2
@@ -92,16 +92,16 @@ module noc_block_delay #(
   // Convert RFNoC Shell interface into AXI stream interface
   //
   ////////////////////////////////////////////////////////////
-  wire [31:0]  m_axis_data_tdata;
-  wire         m_axis_data_tlast;
-  wire         m_axis_data_tvalid;
-  wire         m_axis_data_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0]  m_axis_data_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tlast;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tvalid;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         m_axis_data_tready;
   wire [127:0] m_axis_data_tuser;
 
-  wire [31:0]  s_axis_data_tdata;
-  wire         s_axis_data_tlast;
-  wire         s_axis_data_tvalid;
-  wire         s_axis_data_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0]  s_axis_data_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tlast;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tvalid;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire         s_axis_data_tready;
   wire [127:0] s_axis_data_tuser;
 
   axi_wrapper #(
@@ -142,14 +142,14 @@ module noc_block_delay #(
   //we have to use a split with FIFO because there's no guarantee our path
   //delays match
 
-  wire [15:0] i_data_tdata, fuckery;
-  wire i_data_tlast, i_data_tvalid, i_data_tready;
-  wire [15:0] q_data_tdata;
-  wire q_data_tlast, q_data_tvalid, q_data_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] i_data_tdata, fuckery;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire i_data_tlast, i_data_tvalid, i_data_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] q_data_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire q_data_tlast, q_data_tvalid, q_data_tready;
 
   split_stream_fifo #(
     .WIDTH(32),
-    .FIFO_SIZE(8),
+    .FIFO_SIZE(MAX_DIFF_DELAY_LOG2),
     .ACTIVE_MASK(4'b0011))
   split_stream_fifo_inst(
     .clk(ce_clk),
@@ -167,10 +167,13 @@ module noc_block_delay #(
     .o1_tvalid(q_data_tvalid),
     .o1_tready(q_data_tready));
 
-  wire [15:0] delayed_i_tdata;
-  wire delayed_i_tlast, delayed_i_tvalid, delayed_i_tready;
-  wire [15:0] delayed_q_tdata;
-  wire delayed_q_tlast, delayed_q_tvalid, delayed_q_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] delayed_i_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire delayed_i_tlast, delayed_i_tvalid, delayed_i_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [15:0] delayed_q_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire delayed_q_tlast, delayed_q_tvalid, delayed_q_tready;
+
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0] delay_i;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0] delay_q;
 
   delay_better #(
     .WIDTH(16),
@@ -189,6 +192,7 @@ module noc_block_delay #(
     .len(delay_i[MAX_DELAY_LOG2-1:0]),
     .max_spp(16'b0));
 
+  wire enable_diff;
   delay_better #(
     .WIDTH(16),
     .MAX_LEN_LOG2(MAX_DELAY_LOG2))
@@ -287,21 +291,18 @@ module noc_block_delay #(
   localparam [7:0] SR_DELAY_Q = SR_USER_REG_BASE + 8'd1;
   localparam [7:0] SR_ENABLE_DIFF = SR_USER_REG_BASE + 8'd2;
 
-  wire [31:0] delay_i;
   setting_reg #(
     .my_addr(SR_DELAY_I), .awidth(8), .width(32))
   sr_test_reg_0 (
     .clk(ce_clk), .rst(ce_rst),
     .strobe(set_stb), .addr(set_addr), .in(set_data), .out(delay_i), .changed());
 
-  wire [31:0] delay_q;
   setting_reg #(
     .my_addr(SR_DELAY_Q), .awidth(8), .width(32))
   sr_test_reg_1 (
     .clk(ce_clk), .rst(ce_rst),
     .strobe(set_stb), .addr(set_addr), .in(set_data), .out(delay_q), .changed());
 
-  wire enable_diff;
   setting_reg #(
     .my_addr(SR_ENABLE_DIFF), .awidth(8), .width(1))
   sr_test_reg_2 (
