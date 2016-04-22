@@ -190,10 +190,11 @@ module predistort
   );
 
   //and finally an adder to sum the correction with the stream1.
-  addsub #(.WIDTH(WIDTH)) add (
-    .clk(clk), .reset(reset),
-    .i0_tdata(lut_stream1_tdata), .i0_tlast(lut_stream1_tdata), .i0_tvalid(lut_stream1_tvalid), .i0_tready(lut_stream1_tready),
-    .i1_tdata(interp_clip_tdata), .i1_tlast(interp_clip_tlast), .i1_tvalid(interp_clip_tvalid), .i1_tready(interp_clip_tready),
-    .sum_tdata(o_tdata), .sum_tlast(o_tlast), .sum_tvalid(o_tvalid), .sum_tready(o_tready)
-  );
+  //let's fix this...
+   assign o_tdata = lut_stream1_tdata + interp_clip_tdata;
+   assign o_tlast = lut_stream1_tlast; //follow first input...
+   assign o_tvalid = lut_stream1_tvalid & interp_clip_tvalid;
+   assign lut_stream1_tready = o_tvalid & o_tready;
+   assign interp_clip_tready = o_tvalid & o_tready;
+
 endmodule
