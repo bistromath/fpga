@@ -68,7 +68,7 @@ module ram_to_fifo_next
    //awful
    split_stream_fifo #(.WIDTH(DWIDTH*2), .ACTIVE_MASK(4'b0011)) split_stream (
       .clk(clk), .reset(reset), .clear(clear),
-      .i_tdata({ram_tdata_next, ram_tdata}), .i_tlast(ram_tlast), .i_tvalid(ram_tvalid), .i_tready(ram_tready),
+      .i_tdata({ram_next_tdata, ram_tdata}), .i_tlast(ram_tlast), .i_tvalid(ram_tvalid), .i_tready(ram_tready),
       .o0_tdata(o0_tdata_wide), .o0_tlast(o0_tlast), .o0_tvalid(o0_tvalid), .o0_tready(o0_tready),
       .o1_tdata(o1_tdata_wide), .o1_tlast(o1_tlast), .o1_tvalid(o1_tvalid), .o1_tready(o1_tready)
    );

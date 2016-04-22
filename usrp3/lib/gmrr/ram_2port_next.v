@@ -23,12 +23,19 @@ module ram_2port_next
   );
 
    reg [DWIDTH-1:0] ram [(1<<AWIDTH)-1:0];
-   /*
-   integer 	    i;
+   
+   wire overflowa = (addra == ((1<<AWIDTH)-1));
+   wire overflowb = (addrb == ((1<<AWIDTH)-1));
+   
+   wire [AWIDTH-1:0] nextaddra = overflowa ? (1<<AWIDTH)-1 : addra+1;
+   wire [AWIDTH-1:0] nextaddrb = overflowb ? (1<<AWIDTH)-1 : addrb+1;
+   
+//   integer 	    i;
+//   initial
+//     for(i=0;i<(1<<AWIDTH);i=i+1)
+//       ram[i] <= i*2;
    initial
-     for(i=0;i<(1<<AWIDTH);i=i+1)
-       ram[i] <= {DWIDTH{1'b0}};
-       */
+      $readmemh("/home/nick/clabs/fpga/usrp3/lib/gmrr/predistort_tb/sine.list", ram);
 
    always @(posedge clka) begin
       if (ena)
@@ -36,7 +43,7 @@ module ram_2port_next
            if (wea)
              ram[addra] <= dia;
            doa <= ram[addra];
-           doa_next <= ram[addra+1];
+           doa_next <= ram[nextaddra];
         end
    end
    always @(posedge clkb) begin
@@ -45,7 +52,7 @@ module ram_2port_next
            if (web)
              ram[addrb] <= dib;
            dob <= ram[addrb];
-           dob_next <= ram[addrb+1];
+           dob_next <= ram[nextaddrb];
         end
    end
 endmodule // ram_2port
