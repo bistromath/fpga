@@ -1,22 +1,10 @@
 //a predistorter is basically just a ram_to_fifo block.
 //taps are loaded in serially to each predistorter,
-//and the i_t* input is the (8-bit truncated) input sample data.
+//and the i_t* input is the (N-bit truncated) input sample data.
 //The o_t* output is the lookup table output.
 //The lookup table output has to be linearly
 //interpolated using the truncated bits of the input
-//data. to do the interpolation, you need t[i] and t[i+1].
-//either you have to rig up a thing that registers t[i] and
-//grabs t[i+1] so you can interpolate, or you can double
-//the size of your lookup table...
-//
-//or, you can do it right. ram_2port just instantiates an assload
-//of registers. you really just want to do a modified ram_2port that
-//has an output data width of twice the actual dwidth and gives you
-//t[i+1] as well as t[i]. just make it have two outputs for each port.
-//done.
-//
-//you really don't even need a 2port RAM, but hey, optimization will
-//remove the ports you don't use.
+//data.
 //
 //now you have t[i] and t[i+1], and you need to interpolate.
 //
@@ -24,15 +12,7 @@
 //
 //then get the remainder (truncated bits of the input). NOT ROUNDED.
 //
-//then just do out = t[i] + d_t * r
-//
-//TODO scaling for the truncated bits? need to handle scaling and
-//roundoff.
-//
-//or you could just do it right and register things. let's see, how does
-//this work. you have two AXI streams being output from ram_2port_next.
 //like this:
-//
 //
 //
 //  i  --------  [ ram 2port ]  --t[i]-fxf----------------------- [     ]
@@ -42,31 +22,12 @@
 //                                                     [      ]
 //  r ------------------------------------------------ [      ]
 //
-//  it seems like the short story is, if you make everything an AXI
-//  stream, you don't have to worry about alignment. so let's do that.
-//
 //  WIDTH == input width, output width
 //  DEPTH == entries in the table
 //
 //  i_t* == address data input (i)
 //  o_t* == output data (t[i])
 //  taps_t* == taps stream
-//
-//  you should mask taps_tvalid in the caller so that taps only get loaded
-//  into the desired predistorter.
-//
-//  problem. when you have t[i] and t[i+1], those are really separate
-//  streams. you need a split stream FIFO to decouple them.
-//
-//  this is analogous to splitting a complex stream into I/Q. split_complex
-//  only works on identical downstream paths.
-//
-//  we can make that guarantee for the SUB inputs, but not for the other
-//  fork. maybe we can use a split_complex style duplication for that path, and
-//  a split_stream_fifo on t[i]... but that implies you can no longer do the
-//  split complex thing because the t[i] path will have a FIFO while the t[i+1]
-//  path will not. solution: put a FIFO on the t[i+1] line. problem fuckin'
-//  solved.
 
 module predistort
   #(parameter WIDTH=16, parameter DEPTH=7, parameter DROPBITS=10)
@@ -148,11 +109,6 @@ module predistort
    assign lut_stream0_tready = dt_tvalid & dt_tready;
 
   //then there's a multiplier to mult the remainder by the difference
-  //TODO figure out the bitwidths and rounding -- do i need a round-and-clip?
-  //probably.
-  
-  //ok let's talk about scaling.
-  //how do we even want to handle this?
   mult #(.WIDTH_A(WIDTH), .WIDTH_B(WIDTH), .WIDTH_P(WIDTH+DROPBITS), .DROP_TOP_P(DROPBITS), .LATENCY(4)) mult_inst (
      .clk(clk), .reset(reset),
      .a_tdata({7'b0,remainder_tdata_clip}),
@@ -170,8 +126,6 @@ module predistort
   );
 
   //round off the multiplier output
-  //this is GUARANTEED to require some work. you still need to do the bitwidth
-  //calculations.
   axi_round_and_clip #(
       .WIDTH_IN(WIDTH+DROPBITS),
       .WIDTH_OUT(WIDTH),
