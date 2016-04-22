@@ -113,6 +113,8 @@ module predistort
  );
 
  //quantize incoming data to an index in the LUT and a remainder.
+  wire [DEPTH-1:0] index_tdata_clip;
+  wire [WIDTH-DEPTH-1:0] remainder_tdata_clip;
   assign index_tdata_clip = index_tdata[WIDTH-1:WIDTH-DEPTH];
   assign remainder_tdata_clip = remainder_tdata[WIDTH-DEPTH-1:0];
 
@@ -136,19 +138,24 @@ module predistort
 
    //now we're free to use lut and lut_next with our downstream blocks without
    //fear of things getting blocked up. no more constipation!
-   addsub #(.WIDTH(WIDTH)) sub (
-     .clk(clk), .reset(reset),
-     .i0_tdata(lut_next_tdata), .i0_tlast(lut_next_tlast), .i0_tvalid(lut_next_tvalid), .i0_tready(lut_next_tready),
-     .i1_tdata(lut_stream0_tdata), .i1_tlast(lut_stream0_tlast), .i1_tvalid(lut_stream0_tvalid), .i1_tready(lut_stream0_tready),
-     .diff_tdata(dt_tdata), .diff_tlast(dt_tlast), .diff_tvalid(dt_tvalid), .diff_tready(dt_tready)
-  );
+   //dude you don't need an "addsub" block for adding and subtracting in verilog
+   //you can just add or subtract things... assuming you synchronize the AXI streams first.
+   //the addsub block is designed for complex ints anyhow
+   assign dt_tdata = lut_next_tdata - lut_stream0_tdata;
+   assign dt_tlast = lut_next_tlast; //follow first input...
+   assign dt_tvalid = lut_next_tvalid & lut_stream0_tvalid;
+   assign lut_next_tready = dt_tvalid & dt_tready;
+   assign lut_stream0_tready = dt_tvalid & dt_tready;
 
   //then there's a multiplier to mult the remainder by the difference
   //TODO figure out the bitwidths and rounding -- do i need a round-and-clip?
   //probably.
+  
+  //ok let's talk about scaling.
+  //how do we even want to handle this?
   mult #(.WIDTH_A(WIDTH), .WIDTH_B(WIDTH), .WIDTH_P(WIDTH+DROPBITS), .DROP_TOP_P(DROPBITS), .LATENCY(4)) mult_inst (
      .clk(clk), .reset(reset),
-     .a_tdata(remainder_tdata_clip),
+     .a_tdata({7'b0,remainder_tdata_clip}),
      .a_tlast(remainder_tlast),
      .a_tvalid(remainder_tvalid),
      .a_tready(remainder_tready),
