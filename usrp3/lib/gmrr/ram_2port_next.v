@@ -34,8 +34,8 @@ module ram_2port_next
 //   initial
 //     for(i=0;i<(1<<AWIDTH);i=i+1)
 //       ram[i] <= i*2;
-   initial
-      $readmemh("/home/nick/clabs/fpga/usrp3/lib/gmrr/predistort_tb/sine.list", ram);
+//   initial
+//      $readmemh("/home/nick/clabs/fpga/usrp3/lib/gmrr/predistort_tb/sine.list", ram);
 
    always @(posedge clka) begin
       if (ena)
