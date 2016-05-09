@@ -48,9 +48,6 @@ module noc_block_predistort #(
   // Wires
   //----------------------------------------------------------------------------
 
-  // Set next destination in chain
-  wire [15:0] next_dst[0:NUM_CHANNELS-1];
-
   // Readback register address
   // Make this wide enough to handle all your readback regs
   wire [1:0] rb_addr;
@@ -77,6 +74,17 @@ module noc_block_predistort #(
   endgenerate
   wire [NUM_CHANNELS-1:0] str_src_tlast, str_src_tvalid, str_src_tready;
 
+  wire [15:0] src_sid;
+
+  // Set next destination in chain
+  wire [15:0] next_dst[0:NUM_CHANNELS-1];
+  wire [16*NUM_CHANNELS-1:0] next_dst_flat;
+  genvar c;
+  generate
+    for (c = 0; c < NUM_CHANNELS; c = c + 1)
+       assign next_dst[c] = next_dst_flat[16*(c+1)-1:16*c];
+ endgenerate
+
   // AXI Wrapper
   // input (sink) data
   wire [31:0]  in_tdata;
@@ -99,22 +107,6 @@ module noc_block_predistort #(
   //----------------------------------------------------------------------------
   // Instantiations
   //----------------------------------------------------------------------------
-
-  //Settings registers
-  //make an array of settings regs for setting next dst
-  genvar q;
-  generate
-    for (q = 0; q < NUM_CHANNELS; q = q + 1) begin
-      //instantiate a settings bus entry for next_destination for each output
-      setting_reg #(.my_addr(SR_NEXT_DST+q), .width(16)) next_destination_sr
-        (.clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data),
-        .out(next_dst[q]));
-    end
-  endgenerate
-
-  // Readback register
-  setting_reg #(.my_addr(SR_READBACK), .width(2))
-  sr_rdback (.clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data), .out(rb_addr), .changed());
 
   // RFNoC Shell
   noc_shell #(
@@ -142,7 +134,7 @@ module noc_block_predistort #(
     .set_stb(set_stb),
     .rb_data(rb_data),
     .rb_stb({NUM_CHANNELS{1'b1}}),
-    .rb_addr(),
+    .rb_addr(rb_addr),
     // Control Source (unused)
     .cmdout_tdata(cmdout_tdata),
     .cmdout_tlast(cmdout_tlast),
@@ -164,16 +156,18 @@ module noc_block_predistort #(
     .str_src_tlast(str_src_tlast),
     .str_src_tvalid(str_src_tvalid),
     .str_src_tready(str_src_tready),
+    .src_sid(src_sid),
+    .next_dst_sid(next_dst_flat),
     .clear_tx_seqnum(clear_tx_seqnum),
     .debug(debug));
 
   assign ackin_tready = 1'b1;
 
   wire [NUM_CHANNELS*32-1:0] taps_tdata_flat;
-  (* mark_debug = "true" *) wire [15:0] taps_tdata[0:NUM_CHANNELS-1];
-  (* mark_debug = "true" *) wire [NUM_CHANNELS-1:0] taps_tlast;
-  (* mark_debug = "true" *) wire [NUM_CHANNELS-1:0] taps_tvalid;
-  (* mark_debug = "true" *) wire [NUM_CHANNELS-1:0] taps_tready;
+  wire [15:0] taps_tdata[0:NUM_CHANNELS-1];
+  wire [NUM_CHANNELS-1:0] taps_tlast;
+  wire [NUM_CHANNELS-1:0] taps_tvalid;
+  wire [NUM_CHANNELS-1:0] taps_tready;
 
   genvar p;
   generate
@@ -212,9 +206,7 @@ module noc_block_predistort #(
   genvar z;
   generate
     for(z = 0; z < NUM_CHANNELS; z = z + 1) begin
-      wire [3:0] ch;
-      assign ch = z;
-      assign out_tuser[z] = { out_tuser_pre[z][127:96], out_tuser_pre[z][79:68], ch, next_dst[z], out_tuser_pre[z][63:0] };
+      assign out_tuser[z] = { out_tuser_pre[z][127:96], src_sid, next_dst[z], out_tuser_pre[z][63:0] };
     end
   endgenerate
 
