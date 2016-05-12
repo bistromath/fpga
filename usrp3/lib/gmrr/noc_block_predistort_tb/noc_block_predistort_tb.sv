@@ -5,7 +5,7 @@
 `define NS_PER_TICK 1
 `define NUM_TEST_CASES 6
 
-`define SIM_TIMEOUT_US 70
+`define SIM_TIMEOUT_US 200
 
 `include "sim_exec_report.vh"
 `include "sim_clks_rsts.vh"
@@ -16,7 +16,7 @@ module noc_block_predistort_tb();
   localparam BUS_CLK_PERIOD = $ceil(1e9/166.67e6);
   localparam CE_CLK_PERIOD  = $ceil(1e9/200e6);
   localparam NUM_CE         = 1;  // Number of Computation Engines / User RFNoC blocks to simulate
-  localparam NUM_STREAMS    = 1;  // Number of test bench streams
+  localparam NUM_STREAMS    = 4;  // Number of test bench streams
   `RFNOC_SIM_INIT(NUM_CE, NUM_STREAMS, BUS_CLK_PERIOD, CE_CLK_PERIOD);
   `RFNOC_ADD_BLOCK(noc_block_predistort, 0);
 
@@ -62,11 +62,11 @@ module noc_block_predistort_tb();
     ** TODO FIXME you need to connect all outputs, not just output 0
     ********************************************************/
     `TEST_CASE_START("Connect RFNoC blocks");
-    `RFNOC_CONNECT(noc_block_tb,noc_block_predistort,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_tb,0,noc_block_predistort,0,SC16,SPP);
     `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,0,noc_block_tb,0,SC16,SPP);
-/*    `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,1,noc_block_tb,1,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,1,noc_block_tb,1,SC16,SPP);
     `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,2,noc_block_tb,2,SC16,SPP);
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,3,noc_block_tb,3,SC16,SPP);*/
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_predistort,3,noc_block_tb,3,SC16,SPP);
     `TEST_CASE_DONE(1);
 
     /********************************************************
@@ -76,12 +76,15 @@ module noc_block_predistort_tb();
     /* load predistorter tables */
     begin
       logic [31:0] send_word;
-      for (int n = 0; n < 127; n++) begin
-        send_word[31:16] = taps[n];
-        send_word[15:0]  = taps[n];
-        tb_streamer.write_reg(sid_noc_block_predistort, noc_block_predistort.SR_AXI_CONFIG, send_word);
-        if (n==127)
-          tb_streamer.write_reg(sid_noc_block_predistort, noc_block_predistort.SR_AXI_CONFIG+1, 32'b1);
+      for (int o = 0; o < 4; o++) begin
+        $display("Writing taps for predistorter %0d", o);
+        for (int n = 0; n < 127; n++) begin
+            send_word[31:16] = 0;
+            send_word[15:0]  = taps[n];
+            tb_streamer.write_reg(sid_noc_block_predistort, noc_block_predistort.SR_AXI_CONFIG+2*o, send_word);
+            if (n==127)
+                tb_streamer.write_reg(sid_noc_block_predistort, noc_block_predistort.SR_AXI_CONFIG+2*o+1, 32'b1);
+        end
       end
     end
     `TEST_CASE_DONE(1);
@@ -97,7 +100,7 @@ module noc_block_predistort_tb();
       cvita_payload_t send_payload;
       cvita_metadata_t tx_md;
       for (int i = 0; i < SPP/2; i++) begin
-        send_payload.push_back({16'b0,send_value[i],16'b0,send_value[i+1]});
+        send_payload.push_back({send_value[i],16'b0,send_value[i+1], 16'b0});
       end
       tx_md.eob = 1'b1;
       tb_streamer.send(send_payload, tx_md);
@@ -110,28 +113,29 @@ module noc_block_predistort_tb();
       int unsigned expected_value, index, lut, lut_next, remainder;
       shortint unsigned recv_value[0:SPP];
       string s;
-      tb_streamer.recv(recv_payload[0], rx_md[0], 0);
-      `ASSERT_ERROR(rx_md[0].eob == 1'b1, "EOB bit not set!");
-      /* TODO expected values here */
-      /* it should be the interpolated value from the table */
-      /* this is kind of nontrivial. */
-      for(int k = 0; k < SPP/2; k++) begin
-         recv_value[k] = recv_payload[0][k][47:32];
-         recv_value[k+1] = recv_payload[0][k][15:0];
-      end
-      for(int m = 0; m < SPP; m++) begin
-         index = send_value[m] / (65536/128);
-         lut = taps[index];
-         if(index == 127) begin
-            lut_next = taps[127];
-         end
-         else begin
-            lut_next = taps[index+1];
-         end
-         remainder = send_value[m] - index*512;
-         expected_value = lut + remainder*(lut_next-lut)/512;
-         $sformat(s, "Incorrect value received on predistorter output! Expected: %0d, Received: %0d (index %0d, remainder %0d, lut %0d, lut_next %0d, send_value %0d)", expected_value, recv_value[m], index, remainder, lut, lut_next, send_value[m]);
-         `ASSERT_ERROR(recv_value[m] == expected_value, s);
+      for(int g = 0; g < 4; g++) begin
+        $display("Receiving from stream %0d...", g);
+        tb_streamer.recv(recv_payload[g], rx_md[g], g);
+        $display("done receiving from stream %0d", g);
+        `ASSERT_ERROR(rx_md[g].eob == 1'b1, "EOB bit not set!");
+        for(int k = 0; k < SPP/2; k++) begin
+            recv_value[k] = recv_payload[g][k][63:48];
+            recv_value[k+1] = recv_payload[g][k][31:16];
+        end
+        for(int m = 0; m < SPP; m++) begin
+            index = send_value[m] / (65536/128);
+            lut = taps[index];
+            if(index == 127) begin
+                lut_next = taps[127];
+            end
+            else begin
+                lut_next = taps[index+1];
+            end
+            remainder = send_value[m] - index*512;
+            expected_value = lut + remainder*(lut_next-lut)/512;
+            $sformat(s, "Incorrect value received on predistorter output %0d! Expected: %0d, Received: %0d (index %0d, remainder %0d, lut %0d, lut_next %0d, send_value %0d)", g, expected_value, recv_value[m], index, remainder, lut, lut_next, send_value[m]);
+            `ASSERT_ERROR(recv_value[m] == expected_value, s);
+        end
       end
     end
     `TEST_CASE_DONE(1);
