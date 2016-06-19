@@ -154,28 +154,28 @@ module noc_block_predistort #(
      .my_addr(SR_NEXT_DST+0),
      .width(16)) next_dst_0 (
      .clk(ce_clk), .rst(ce_rst),
-     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]),
      .out(next_dst[0]));
 
   setting_reg #(
      .my_addr(SR_NEXT_DST+1),
      .width(16)) next_dst_1 (
      .clk(ce_clk), .rst(ce_rst),
-     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]),
      .out(next_dst[1]));
 
   setting_reg #(
      .my_addr(SR_NEXT_DST+2),
      .width(16)) next_dst_2 (
      .clk(ce_clk), .rst(ce_rst),
-     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]),
      .out(next_dst[2]));
 
   setting_reg #(
      .my_addr(SR_NEXT_DST+3),
      .width(16)) next_dst_3 (
      .clk(ce_clk), .rst(ce_rst),
-     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]),
      .out(next_dst[3]));
 
   genvar p;
@@ -261,16 +261,16 @@ module noc_block_predistort #(
     .WIDTH(128), .ACTIVE_MASK(4'b1111))
   tuser_splitter (
     .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
-    .i_tdata(in_tuser[0]), .i_tlast(1'b0), .i_tvalid(in_tvalid[0] & in_tlast[0]), .i_tready(),
+    .i_tdata(in_tuser), .i_tlast(1'b0), .i_tvalid(in_tvalid & in_tlast), .i_tready(),
     .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(out_tlast[0] & out_tready[0]),
     .o1_tdata(out_tuser_pre[1]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[1] & out_tready[1]),
-    .o2_tdata(out_tuser_pre[2]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[2] & out_tready[2]),
-    .o3_tdata(out_tuser_pre[3]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[3] & out_tready[3]));
+    .o2_tdata(out_tuser_pre[2]), .o2_tlast(), .o2_tvalid(), .o2_tready(out_tlast[2] & out_tready[2]),
+    .o3_tdata(out_tuser_pre[3]), .o3_tlast(), .o3_tvalid(), .o3_tready(out_tlast[3] & out_tready[3]));
 
-  assign out_tuser[0] = { out_tuser_pre[0][127:96], out_tuser_pre[0][79:68], 4'b0000, next_destination[0], out_tuser_pre[0][63:0] };
-  assign out_tuser[1] = { out_tuser_pre[1][127:96], out_tuser_pre[1][79:68], 4'b0001, next_destination[1], out_tuser_pre[1][63:0] };
-  assign out_tuser[2] = { out_tuser_pre[2][127:96], out_tuser_pre[2][79:68], 4'b0010, next_destination[2], out_tuser_pre[2][63:0] };
-  assign out_tuser[3] = { out_tuser_pre[3][127:96], out_tuser_pre[3][79:68], 4'b0011, next_destination[3], out_tuser_pre[3][63:0] };
+  assign out_tuser[0] = { out_tuser_pre[0][127:96], out_tuser_pre[0][79:68], 4'b0000, next_dst[0], out_tuser_pre[0][63:0] };
+  assign out_tuser[1] = { out_tuser_pre[1][127:96], out_tuser_pre[1][79:68], 4'b0001, next_dst[1], out_tuser_pre[1][63:0] };
+  assign out_tuser[2] = { out_tuser_pre[2][127:96], out_tuser_pre[2][79:68], 4'b0010, next_dst[2], out_tuser_pre[2][63:0] };
+  assign out_tuser[3] = { out_tuser_pre[3][127:96], out_tuser_pre[3][79:68], 4'b0011, next_dst[3], out_tuser_pre[3][63:0] };
 
   //you'll want to split that stream into four streams.
   wire [15:0] input_split_tdata[0:3];
