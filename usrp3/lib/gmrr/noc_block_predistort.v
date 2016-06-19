@@ -110,12 +110,12 @@ module noc_block_predistort #(
     .clk(ce_clk),
     .reset(ce_rst),
     // Control Sink
-    .set_data({set_data[3], set_data[2], set_data[1], set_data[0]}),
-    .set_addr({set_addr[3], set_addr[2], set_addr[1], set_addr[0]}),
-    .set_stb({set_stb[3], set_stb[2], set_stb[1], set_stb[0]}),
+    .set_data(set_data[0]),
+    .set_addr(set_addr[0]),
+    .set_stb(set_stb[0]),
     .rb_data({rb_data[3], rb_data[2], rb_data[1], rb_data[0]}),
-    .rb_stb({NUM_CHANNELS{1'b1}}),
-    .rb_addr({rb_addr[3], rb_addr[2], rb_addr[1], rb_addr[0]}),
+//    .rb_stb({NUM_CHANNELS{1'b1}}),
+//    .rb_addr({rb_addr[3], rb_addr[2], rb_addr[1], rb_addr[0]}),
     // Control Source (unused)
     .cmdout_tdata(cmdout_tdata),
     .cmdout_tlast(cmdout_tlast),
@@ -125,8 +125,8 @@ module noc_block_predistort #(
     .ackin_tlast(ackin_tlast),
     .ackin_tvalid(ackin_tvalid),
     .ackin_tready(ackin_tready),
-    .resp_in_dst_sid({resp_in_dst_sid[3], resp_in_dst_sid[2], resp_in_dst_sid[1], resp_in_dst_sid[0]}),
-    .resp_out_dst_sid({resp_out_dst_sid[3], resp_out_dst_sid[2], resp_out_dst_sid[1], resp_out_dst_sid[0]}),
+//    .resp_in_dst_sid({resp_in_dst_sid[3], resp_in_dst_sid[2], resp_in_dst_sid[1], resp_in_dst_sid[0]}),
+//    .resp_out_dst_sid({resp_out_dst_sid[3], resp_out_dst_sid[2], resp_out_dst_sid[1], resp_out_dst_sid[0]}),
     // Stream Sink
     .str_sink_tdata(str_sink_tdata),
     .str_sink_tlast(str_sink_tlast),
@@ -137,8 +137,8 @@ module noc_block_predistort #(
     .str_src_tlast(str_src_tlast),
     .str_src_tvalid(str_src_tvalid),
     .str_src_tready(str_src_tready),
-    .src_sid({src_sid[3], src_sid[2], src_sid[1], src_sid[0]}),
-    .next_dst_sid({next_dst[3], next_dst[2], next_dst[1], next_dst[0]}),
+//    .src_sid({src_sid[3], src_sid[2], src_sid[1], src_sid[0]}),
+//    .next_dst_sid({next_dst[3], next_dst[2], next_dst[1], next_dst[0]}),
     .clear_tx_seqnum(clear_tx_seqnum),
     .debug(debug));
 
@@ -149,6 +149,34 @@ module noc_block_predistort #(
   wire [NUM_CHANNELS-1:0] taps_tlast;
   wire [NUM_CHANNELS-1:0] taps_tvalid;
   wire [NUM_CHANNELS-1:0] taps_tready;
+
+  setting_reg #(
+     .my_addr(SR_NEXT_DST+0),
+     .width(16)) next_dst_0 (
+     .clk(ce_clk), .rst(ce_rst),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .out(next_dst[0]));
+
+  setting_reg #(
+     .my_addr(SR_NEXT_DST+1),
+     .width(16)) next_dst_1 (
+     .clk(ce_clk), .rst(ce_rst),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .out(next_dst[1]));
+
+  setting_reg #(
+     .my_addr(SR_NEXT_DST+2),
+     .width(16)) next_dst_2 (
+     .clk(ce_clk), .rst(ce_rst),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .out(next_dst[2]));
+
+  setting_reg #(
+     .my_addr(SR_NEXT_DST+3),
+     .width(16)) next_dst_3 (
+     .clk(ce_clk), .rst(ce_rst),
+     .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data),
+     .out(next_dst[3]));
 
   genvar p;
   generate
@@ -227,23 +255,22 @@ module noc_block_predistort #(
    end
   endgenerate
 
-  genvar s;
-  generate
-    for (s = 0; s < NUM_CHANNELS; s = s + 1) begin
-      // Handle headers
-      cvita_hdr_modify cvita_hdr_modify_inst (
-         .header_in(in_tuser),
-         .header_out(out_tuser[s]),
-         .use_pkt_type(1'b0),  .pkt_type(),
-         .use_has_time(1'b0),  .has_time(),
-         .use_eob(1'b0),       .eob(),
-         .use_seqnum(1'b0),    .seqnum(),
-         .use_length(1'b0),    .length(),
-         .use_src_sid(1'b1),   .src_sid(src_sid[s]),
-         .use_dst_sid(1'b1),   .dst_sid(next_dst[s]),
-         .use_vita_time(1'b0), .vita_time());
-    end
-  endgenerate
+  wire[127:0] out_tuser_pre[0:NUM_CHANNELS-1];
+
+  split_stream_fifo #(
+    .WIDTH(128), .ACTIVE_MASK(4'b1111))
+  tuser_splitter (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata(in_tuser[0]), .i_tlast(1'b0), .i_tvalid(in_tvalid[0] & in_tlast[0]), .i_tready(),
+    .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(out_tlast[0] & out_tready[0]),
+    .o1_tdata(out_tuser_pre[1]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[1] & out_tready[1]),
+    .o2_tdata(out_tuser_pre[2]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[2] & out_tready[2]),
+    .o3_tdata(out_tuser_pre[3]), .o1_tlast(), .o1_tvalid(), .o1_tready(out_tlast[3] & out_tready[3]));
+
+  assign out_tuser[0] = { out_tuser_pre[0][127:96], out_tuser_pre[0][79:68], 4'b0000, next_destination[0], out_tuser_pre[0][63:0] };
+  assign out_tuser[1] = { out_tuser_pre[1][127:96], out_tuser_pre[1][79:68], 4'b0001, next_destination[1], out_tuser_pre[1][63:0] };
+  assign out_tuser[2] = { out_tuser_pre[2][127:96], out_tuser_pre[2][79:68], 4'b0010, next_destination[2], out_tuser_pre[2][63:0] };
+  assign out_tuser[3] = { out_tuser_pre[3][127:96], out_tuser_pre[3][79:68], 4'b0011, next_destination[3], out_tuser_pre[3][63:0] };
 
   //you'll want to split that stream into four streams.
   wire [15:0] input_split_tdata[0:3];
