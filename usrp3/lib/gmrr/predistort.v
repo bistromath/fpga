@@ -74,6 +74,13 @@ module predistort
  );
 
  //quantize incoming data to an index in the LUT and a remainder.
+ //NOTE: since the incoming data is SIGNED, the scaling is effectively DOUBLED.
+ //      Data coming into the block might be a magnitude, all right, but it's
+ //      still by convention SC16, so there's only fifteen bits of usable data.
+ //      Basically we throw away the sign bit. Or is there value in having it?
+ //      I can imagine a world in which we need to use a LUT with negative
+ //      values as well. This should work just fine.... this implies that we'd
+ //      just take the hit of doubling our LUT size.
   wire [DEPTH-1:0] index_tdata_clip;
   wire [WIDTH-DEPTH-1:0] remainder_tdata_clip;
   assign index_tdata_clip = index_tdata[WIDTH-1:WIDTH-DEPTH];
