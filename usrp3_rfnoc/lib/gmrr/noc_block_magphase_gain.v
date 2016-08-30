@@ -29,22 +29,15 @@ module noc_block_magphase_gain #(
   //----------------------------------------------------------------------------
 
   // Settings registers addresses
-  localparam SR_NEXT_DST    = 128;
-  localparam SR_AXI_CONFIG  = 129;
   localparam SR_MAG_GAIN    = 192;
   localparam SR_PHASE_GAIN  = 193;
-  localparam SR_READBACK    = 255;
 
   //----------------------------------------------------------------------------
   // Wires
   //----------------------------------------------------------------------------
-
-  // Set next destination in chain
-  wire [15:0] next_dst;
-
   // Readback register address
-  wire [1:0] rb_addr;
-
+  wire [7:0] rb_addr;
+  wire [63:0] rb_data;
 
   // RFNoC Shell
   wire [31:0] set_data;
@@ -59,6 +52,13 @@ module noc_block_magphase_gain #(
   wire [63:0] str_src_tdata;
   wire str_src_tlast, str_src_tvalid, str_src_tready;
 
+//  wire [63:0] cmdout_tdata, ackin_tdata;
+//  wire        cmdout_tlast, cmdout_tvalid, cmdout_tready, ackin_tlast, ackin_tvalid, ackin_tready;
+
+  wire [15:0] src_sid;
+  wire [15:0] next_dst_sid, resp_out_dst_sid;
+  wire [15:0] resp_in_dst_sid;
+
   // AXI Wrapper
   // input (sink) data
   wire [31:0]  m_axis_data_tdata;
@@ -66,38 +66,26 @@ module noc_block_magphase_gain #(
   wire m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
 
   // output (source) data
-  (* mark_debug = "true" *) wire [31:0]  s_axis_data_tdata;
+  wire [31:0]  s_axis_data_tdata;
   wire [127:0] s_axis_data_tuser;
-  (* mark_debug = "true" *)  wire s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
+  wire s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
 
   //----------------------------------------------------------------------------
   // Registers
   //----------------------------------------------------------------------------
 
-  // Readback register data
-  reg [63:0] rb_data;
-
   //----------------------------------------------------------------------------
   // Instantiations
   //----------------------------------------------------------------------------
-
-  // Set next destination in chain
-  setting_reg #(.my_addr(SR_NEXT_DST), .width(16))
-  sr_next_dst0(.clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data), .out(next_dst), .changed());
-
   //Settings registers
-  (* mark_debug = "true" *) wire [15:0] mag_gain;
-  (* mark_debug = "true" *) wire [15:0] phase_gain;
+  wire [15:0] mag_gain;
+  wire [15:0] phase_gain;
 
   setting_reg #(.my_addr(SR_MAG_GAIN), .width(16)) sr_mag_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data), .out(mag_gain), .changed());
 
   setting_reg #(.my_addr(SR_PHASE_GAIN), .width(16)) sr_phase_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data), .out(phase_gain), .changed());
-
-  // Readback registers
-  setting_reg #(.my_addr(SR_READBACK), .width(2))
-  sr_rdback (.clk(ce_clk), .rst(ce_rst), .strobe(set_stb), .addr(set_addr), .in(set_data), .out(rb_addr), .changed());
 
   // RFNoC Shell
   noc_shell #(
@@ -124,6 +112,8 @@ module noc_block_magphase_gain #(
     .set_addr(set_addr),
     .set_stb(set_stb),
     .rb_data(rb_data),
+    .rb_stb(1'b1),
+    .rb_addr(rb_addr),
     // Control Source (unused)
     .cmdout_tdata(64'd0),
     .cmdout_tlast(1'b0),
@@ -144,17 +134,23 @@ module noc_block_magphase_gain #(
     .str_src_tvalid(str_src_tvalid),
     .str_src_tready(str_src_tready),
     .clear_tx_seqnum(clear_tx_seqnum),
+    // Stream IDs
+    .src_sid(src_sid),
+    .next_dst_sid(next_dst_sid),
+    .resp_in_dst_sid(resp_in_dst_sid),
+    .resp_out_dst_sid(resp_out_dst_sid),
     .debug(debug));
 
   // AXI Wrapper - Convert RFNoC Shell interface into AXI stream interface
   axi_wrapper #(
-    .SR_AXI_CONFIG_BASE(SR_AXI_CONFIG))
+    //.SR_AXI_CONFIG_BASE(SR_AXI_CONFIG)
+  )
   axi_wrapper_inst (
     .clk(ce_clk),
     .reset(ce_rst),
     // RFNoC Shell
     .clear_tx_seqnum(clear_tx_seqnum),
-    .next_dst(next_dst),
+    .next_dst(next_dst_sid),
     .set_stb(set_stb),
     .set_addr(set_addr),
     .set_data(set_data),
@@ -181,14 +177,14 @@ module noc_block_magphase_gain #(
     .m_axis_config_tvalid(),
     .m_axis_config_tready(1'b1));
 
-  (* mark_debug = "true" *) wire [31:0] magphase_axis_data_tdata;
-  (* mark_debug = "true" *) wire magphase_axis_data_tlast;
-  (* mark_debug = "true" *) wire magphase_axis_data_tready;
-  (* mark_debug = "true" *) wire magphase_axis_data_tvalid;
-  (* mark_debug = "true" *) wire [15:0] magnitude_axis_data_tdata;
-  (* mark_debug = "true" *) wire magnitude_axis_data_tlast;
-  (* mark_debug = "true" *) wire magnitude_axis_data_tready;
-  (* mark_debug = "true" *) wire magnitude_axis_data_tvalid;
+  wire [31:0] magphase_axis_data_tdata;
+  wire magphase_axis_data_tlast;
+  wire magphase_axis_data_tready;
+  wire magphase_axis_data_tvalid;
+  wire [15:0] magnitude_axis_data_tdata;
+  wire magnitude_axis_data_tlast;
+  wire magnitude_axis_data_tready;
+  wire magnitude_axis_data_tvalid;
   wire [15:0] phase_axis_data_tdata;
   wire phase_axis_data_tlast;
   wire phase_axis_data_tready;
@@ -320,13 +316,5 @@ module noc_block_magphase_gain #(
      .o_tlast(s_axis_data_tlast),
      .o_tvalid(s_axis_data_tvalid),
      .o_tready(s_axis_data_tready));
-
-  // Readback register values
-  always @*
-    case(rb_addr)
-      2'd00    : rb_data <= mag_gain;
-      2'd01    : rb_data <= phase_gain;
-      default : rb_data <= 64'hBEEEEEEEEEEEEEEF;
-    endcase
 
 endmodule
