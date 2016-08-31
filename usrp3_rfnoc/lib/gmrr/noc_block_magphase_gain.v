@@ -93,7 +93,7 @@ module noc_block_magphase_gain #(
     .STR_SINK_FIFOSIZE(STR_SINK_FIFOSIZE),
     .INPUT_PORTS(1),
     .OUTPUT_PORTS(1))
-  noc_shell_inst (
+  noc_shell (
     .bus_clk(bus_clk),
     .bus_rst(bus_rst),
     .i_tdata(i_tdata),
@@ -145,7 +145,7 @@ module noc_block_magphase_gain #(
   axi_wrapper #(
     //.SR_AXI_CONFIG_BASE(SR_AXI_CONFIG)
   )
-  axi_wrapper_inst (
+  axi_wrapper (
     .clk(ce_clk),
     .reset(ce_rst),
     // RFNoC Shell
