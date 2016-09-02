@@ -7,6 +7,7 @@ include $(LIB_IP_DIR)/axi_fft/Makefile.inc
 include $(LIB_IP_DIR)/axi_hb31/Makefile.inc
 include $(LIB_IP_DIR)/axi_hb47/Makefile.inc
 include $(LIB_IP_DIR)/complex_to_magphase/Makefile.inc
+include $(LIB_IP_DIR)/phase_modulator/Makefile.inc
 include $(LIB_IP_DIR)/complex_multiplier/Makefile.inc
 include $(LIB_IP_DIR)/cordic_rotator/Makefile.inc
 include $(LIB_IP_DIR)/cordic_rotator24/Makefile.inc
@@ -22,6 +23,7 @@ $(LIB_IP_AXI_FFT_SRCS) \
 $(LIB_IP_AXI_HB31_SRCS) \
 $(LIB_IP_AXI_HB47_SRCS) \
 $(LIB_IP_COMPLEX_TO_MAGPHASE_SRCS) \
+$(LIB_IP_PHASE_MODULATOR_SRCS) \
 $(LIB_IP_COMPLEX_MULTIPLIER_SRCS) \
 $(LIB_IP_CORDIC_ROTATOR_SRCS) \
 $(LIB_IP_CORDIC_ROTATOR24_SRCS) \
@@ -37,6 +39,7 @@ $(LIB_IP_AXI_FFT_OUTS) \
 $(LIB_IP_AXI_HB31_OUTS) \
 $(LIB_IP_AXI_HB47_OUTS) \
 $(LIB_IP_COMPLEX_TO_MAGPHASE_OUTS) \
+$(LIB_IP_PHASE_MODULATOR_OUTS) \
 $(LIB_IP_COMPLEX_MULTIPLIER_OUTS) \
 $(LIB_IP_CORDIC_ROTATOR_OUTS) \
 $(LIB_IP_CORDIC_ROTATOR24_OUTS) \

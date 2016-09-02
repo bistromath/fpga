@@ -17,9 +17,11 @@ LIB_IP_DIR = $(BASE_DIR)/../lib/ip
 IP_DIR = $(LIB_IP_DIR)
 
 include $(LIB_IP_DIR)/complex_to_magphase/Makefile.inc
+include $(LIB_IP_DIR)/phase_modulator/Makefile.inc
 
 DESIGN_SRCS += $(abspath \
 $(LIB_IP_COMPLEX_TO_MAGPHASE_SRCS) \
+$(LIB_IP_PHASE_MODULATOR_SRCS) \
 )
 
 # Define only one toplevel module
