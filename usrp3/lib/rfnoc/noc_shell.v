@@ -57,7 +57,7 @@ module noc_shell
     output [OUTPUT_PORTS-1:0] clear_tx_seqnum,       // Clear TX Sequence Number, one per output port
     output [BLOCK_PORTS*16-1:0] src_sid,             // Stream ID of block port, one per input and/or output port
     output [OUTPUT_PORTS*16-1:0] next_dst_sid,       // Stream ID of downstream block, one per output port
-    output [INPUT_PORTS*16-1:0] resp_in_dst_sid,     // Stream IDs to forward errors / special messages, one per input
+    output [BLOCK_PORTS*16-1:0] resp_in_dst_sid,     // Stream IDs to forward errors / special messages, one per input
     output [OUTPUT_PORTS*16-1:0] resp_out_dst_sid,   // and one per output port
 
     output [63:0] debug
