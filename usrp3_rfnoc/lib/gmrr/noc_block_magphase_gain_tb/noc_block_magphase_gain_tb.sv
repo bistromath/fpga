@@ -79,6 +79,7 @@ module noc_block_magphase_gain_tb();
     `TEST_CASE_START("Setup Mag/Phase block");
     //TODO set magnitude and phase gains here
     tb_streamer.write_reg(sid_noc_block_magphase_gain, noc_block_magphase_gain.SR_MAG_GAIN, 256);
+    tb_streamer.write_reg(sid_noc_block_magphase_gain, noc_block_magphase_gain.SR_SQUELCH_LEVEL, 8000);
     `TEST_CASE_DONE(1);
 
     /********************************************************
@@ -86,7 +87,7 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     for (int l = 0; l < SPP; l+=1) begin
        i_value[l] = 16'(cos_1_32nd[l%32]);
-       q_value[l] = 16'(sin_1_32nd[l%32]);
+       q_value[l] = 16'(0);//sin_1_32nd[l%32]);
     end
     `TEST_CASE_START("Send test vectors");
     begin

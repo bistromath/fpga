@@ -29,7 +29,8 @@ module noc_block_magphase_gain #(
   //----------------------------------------------------------------------------
 
   // Settings registers addresses
-  localparam SR_MAG_GAIN    = 192;
+  localparam SR_MAG_GAIN      = 192;
+  localparam SR_SQUELCH_LEVEL = 193;
 
   //----------------------------------------------------------------------------
   // Wires
@@ -81,9 +82,12 @@ module noc_block_magphase_gain #(
   //----------------------------------------------------------------------------
   //Settings registers
   wire [15:0] mag_gain;
+  wire [15:0] squelch_level;
 
   setting_reg #(.my_addr(SR_MAG_GAIN), .width(16)) sr_mag_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(mag_gain), .changed());
+  setting_reg #(.my_addr(SR_SQUELCH_LEVEL), .width(16)) sr_squelch_level(
+    .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(squelch_level), .changed());
 
   // RFNoC Shell
   noc_shell #(
@@ -312,11 +316,14 @@ module noc_block_magphase_gain #(
   wire mag_gain_a_tready, mag_gain_b_tready;
   assign magnitude_axis_data_tready = mag_gain_a_tready & mag_gain_b_tready;
 
+  wire [15:0] mag_squelched_axis_tdata;
+  assign mag_squelched_axis_tdata = (magnitude_axis_data_tdata > squelch_level) ? magnitude_axis_data_tdata : 0;
+
   //drop_top_p increased to 12 to shift the output back left again
   mult #(.WIDTH_A(16), .WIDTH_B(16), .WIDTH_P(26), .DROP_TOP_P(12)) inst_mag_gain(
       .clk(ce_clk),
       .reset(ce_rst),
-      .a_tdata(magnitude_axis_data_tdata),
+      .a_tdata(mag_squelched_axis_tdata),
       .a_tlast(magnitude_axis_data_tlast),
       .a_tvalid(magnitude_axis_data_tvalid),
       .a_tready(mag_gain_a_tready),
