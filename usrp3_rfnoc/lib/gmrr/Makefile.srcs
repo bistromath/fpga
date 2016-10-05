@@ -7,6 +7,7 @@
 ##################################################
 GMRR_SRCS = $(abspath $(addprefix $(BASE_DIR)/../lib/gmrr/, \
 noc_block_gain.v \
+noc_block_mult.v \
 noc_block_magphase_gain.v \
 noc_block_predistort.v \
 predistort.v \

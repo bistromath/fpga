@@ -43,6 +43,8 @@ module noc_block_predistort #(
   localparam SR_AXI_CONFIG  = 129;
   localparam SR_READBACK    = 255;
 
+  localparam NUM_PORTS      = NUM_CHANNELS / 2;
+
 
   //----------------------------------------------------------------------------
   // Wires
@@ -50,29 +52,29 @@ module noc_block_predistort #(
 
 
   // RFNoC Shell
-  wire [31:0]             set_data[0:NUM_CHANNELS-1];
-  wire [7:0]              set_addr[0:NUM_CHANNELS-1];
-  wire [NUM_CHANNELS-1:0] set_stb;
-  reg [63:0] rb_data[0:NUM_CHANNELS-1];
-  wire [7:0] rb_addr[0:NUM_CHANNELS-1];
+  wire [31:0]             set_data[0:NUM_PORTS-1];
+  wire [7:0]              set_addr[0:NUM_PORTS-1];
+  wire [NUM_PORTS-1:0] set_stb;
+  reg [63:0] rb_data[0:NUM_PORTS-1];
+  wire [7:0] rb_addr[0:NUM_PORTS-1];
 
   wire [63:0]   cmdout_tdata, ackin_tdata;
   wire          cmdout_tlast, cmdout_tvalid, cmdout_tready, ackin_tlast, ackin_tvalid, ackin_tready;
 
-  wire [NUM_CHANNELS-1:0] clear_tx_seqnum;
+  wire [NUM_PORTS-1:0] clear_tx_seqnum;
 
   wire [63:0] str_sink_tdata;
   wire str_sink_tlast, str_sink_tvalid, str_sink_tready;
 
-  wire [63:0] str_src_tdata[0:NUM_CHANNELS-1];
-  wire [NUM_CHANNELS-1:0] str_src_tlast, str_src_tvalid, str_src_tready;
+  wire [63:0] str_src_tdata[0:NUM_PORTS-1];
+  wire [NUM_PORTS-1:0] str_src_tlast, str_src_tvalid, str_src_tready;
 
-  wire [15:0] src_sid[0:NUM_CHANNELS-1];
+  wire [15:0] src_sid[0:NUM_PORTS-1];
   wire [15:0] resp_in_dst_sid;
-  wire [15:0] resp_out_dst_sid[0:NUM_CHANNELS-1];
+  wire [15:0] resp_out_dst_sid[0:NUM_PORTS-1];
 
   // Set next destination in chain
-  wire [15:0] next_dst[0:NUM_CHANNELS-1];
+  wire [15:0] next_dst[0:NUM_PORTS-1];
 
   // AXI Wrapper
   // input (sink) data
@@ -80,11 +82,11 @@ module noc_block_predistort #(
   wire [127:0] in_tuser;
   wire in_tlast, in_tvalid, in_tready;
 
-  // output (source) data
-  wire [31:0]  out_tdata[0:NUM_CHANNELS-1]; //this syntax is fucked.
-  wire [127:0] out_tuser[0:NUM_CHANNELS-1];
+  // predistorter output data (four of these)
+  wire [15:0]  out_tdata[0:NUM_CHANNELS-1]; //this syntax is fucked.
   wire [NUM_CHANNELS-1:0] out_tlast, out_tvalid, out_tready;
 
+  wire [127:0] out_tuser[0:NUM_PORTS-1]; //only two of these
   //----------------------------------------------------------------------------
   // Instantiations
   //----------------------------------------------------------------------------
@@ -94,7 +96,7 @@ module noc_block_predistort #(
     .NOC_ID(NOC_ID),
     .STR_SINK_FIFOSIZE(STR_SINK_FIFOSIZE[7:0]),
     .INPUT_PORTS(1),
-    .OUTPUT_PORTS(NUM_CHANNELS))
+    .OUTPUT_PORTS(NUM_PORTS))
   noc_shell (
     .bus_clk(bus_clk),
     .bus_rst(bus_rst),
@@ -110,12 +112,12 @@ module noc_block_predistort #(
     .clk(ce_clk),
     .reset(ce_rst),
     // Control Sink
-    .set_data({set_data[3], set_data[2], set_data[1], set_data[0]}),
-    .set_addr({set_addr[3], set_addr[2], set_addr[1], set_addr[0]}),
-    .set_stb({set_stb[3], set_stb[2], set_stb[1], set_stb[0]}),
-    .rb_data({rb_data[3], rb_data[2], rb_data[1], rb_data[0]}),
-    .rb_stb({NUM_CHANNELS{1'b1}}),
-    .rb_addr({rb_addr[3], rb_addr[2], rb_addr[1], rb_addr[0]}),
+    .set_data({set_data[1], set_data[0]}),
+    .set_addr({set_addr[1], set_addr[0]}),
+    .set_stb({set_stb[1], set_stb[0]}),
+    .rb_data({rb_data[1], rb_data[0]}),
+    .rb_stb({NUM_PORTS{1'b1}}),
+    .rb_addr({rb_addr[1], rb_addr[0]}),
     // Control Source (unused)
     .cmdout_tdata(cmdout_tdata),
     .cmdout_tlast(cmdout_tlast),
@@ -125,20 +127,20 @@ module noc_block_predistort #(
     .ackin_tlast(ackin_tlast),
     .ackin_tvalid(ackin_tvalid),
     .ackin_tready(ackin_tready),
-    .resp_in_dst_sid({resp_in_dst_sid[3], resp_in_dst_sid[2], resp_in_dst_sid[1], resp_in_dst_sid[0]}),
-    .resp_out_dst_sid({resp_out_dst_sid[3], resp_out_dst_sid[2], resp_out_dst_sid[1], resp_out_dst_sid[0]}),
+    .resp_in_dst_sid({resp_in_dst_sid[1], resp_in_dst_sid[0]}),
+    .resp_out_dst_sid({resp_out_dst_sid[1], resp_out_dst_sid[0]}),
     // Stream Sink
     .str_sink_tdata(str_sink_tdata),
     .str_sink_tlast(str_sink_tlast),
     .str_sink_tvalid(str_sink_tvalid),
     .str_sink_tready(str_sink_tready),
     // Stream Sources //TODO ideally should be parameterized for NUM_CHANNELS
-    .str_src_tdata({str_src_tdata[3], str_src_tdata[2], str_src_tdata[1], str_src_tdata[0]}),
+    .str_src_tdata({str_src_tdata[1], str_src_tdata[0]}),
     .str_src_tlast(str_src_tlast),
     .str_src_tvalid(str_src_tvalid),
     .str_src_tready(str_src_tready),
-    .src_sid({src_sid[3], src_sid[2], src_sid[1], src_sid[0]}),
-    .next_dst_sid({next_dst[3], next_dst[2], next_dst[1], next_dst[0]}),
+    .src_sid({src_sid[1], src_sid[0]}),
+    .next_dst_sid({next_dst[1], next_dst[0]}),
     .clear_tx_seqnum(clear_tx_seqnum),
     .debug(debug));
 
@@ -168,6 +170,9 @@ module noc_block_predistort #(
     end
   endgenerate
 
+  wire [31:0] mux_tdata[0:NUM_PORTS-1];
+  wire [NUM_PORTS-1:0] mux_tlast, mux_tvalid, mux_tready;
+
    axi_wrapper #(
       .SIMPLE_MODE(0) /* Handle header internally */)
    axi_wrapper_inst (
@@ -182,10 +187,10 @@ module noc_block_predistort #(
       .m_axis_data_tvalid(in_tvalid),
       .m_axis_data_tready(in_tready),
       .m_axis_data_tuser(in_tuser),
-      .s_axis_data_tdata(out_tdata[0]),
-      .s_axis_data_tlast(out_tlast[0]),
-      .s_axis_data_tvalid(out_tvalid[0]),
-      .s_axis_data_tready(out_tready[0]),
+      .s_axis_data_tdata(mux_tdata[0]),
+      .s_axis_data_tlast(mux_tlast[0]),
+      .s_axis_data_tvalid(mux_tvalid[0]),
+      .s_axis_data_tready(mux_tready[0]),
       .s_axis_data_tuser(out_tuser[0]),
       .m_axis_config_tdata(),
       .m_axis_config_tlast(),
@@ -197,7 +202,7 @@ module noc_block_predistort #(
 
   genvar u;
   generate
-    for (u = 1; u < NUM_CHANNELS; u = u + 1) begin
+    for (u = 1; u < NUM_PORTS; u = u + 1) begin
       axi_wrapper #(
          .SIMPLE_MODE(0) /* Handle header internally */)
       axi_wrapper_inst (
@@ -212,10 +217,10 @@ module noc_block_predistort #(
          .m_axis_data_tvalid(),
          .m_axis_data_tready(),
          .m_axis_data_tuser(),
-         .s_axis_data_tdata(out_tdata[u]),
-         .s_axis_data_tlast(out_tlast[u]),
-         .s_axis_data_tvalid(out_tvalid[u]),
-         .s_axis_data_tready(out_tready[u]),
+         .s_axis_data_tdata(mux_tdata[u]),
+         .s_axis_data_tlast(mux_tlast[u]),
+         .s_axis_data_tvalid(mux_tvalid[u]),
+         .s_axis_data_tready(mux_tready[u]),
          .s_axis_data_tuser(out_tuser[u]),
          .m_axis_config_tdata(),
          .m_axis_config_tlast(),
@@ -229,7 +234,7 @@ module noc_block_predistort #(
 
   genvar s;
   generate
-    for (s = 0; s < NUM_CHANNELS; s = s + 1) begin
+    for (s = 0; s < NUM_PORTS; s = s + 1) begin
       // Handle headers
       cvita_hdr_modify cvita_hdr_modify_inst (
          .header_in(in_tuser),
@@ -264,16 +269,45 @@ module noc_block_predistort #(
        //the predistorter operates on magnitudes, which come in here on the
        //I channel (bits 31-16). out_tdata is 32b wide but we only set the upper
        //16.
-       predistort #(.WIDTH(16), .DEPTH(7)) predistort_inst (
+       predistort #(.WIDTH(16), .DEPTH(13)) predistort_inst (
           .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
           .i_tdata(input_split_tdata[k]), .i_tlast(input_split_tlast[k]), .i_tvalid(input_split_tvalid[k]), .i_tready(input_split_tready[k]),
-          .o_tdata(out_tdata[k][31:16]), .o_tlast(out_tlast[k]), .o_tvalid(out_tvalid[k]), .o_tready(out_tready[k]),
+          .o_tdata(out_tdata[k]), .o_tlast(out_tlast[k]), .o_tvalid(out_tvalid[k]), .o_tready(out_tready[k]),
           .taps_tdata(taps_tdata[k]), .taps_tlast(taps_tlast[k]), .taps_tvalid(taps_tvalid[k]), .taps_tready(taps_tready[k])
        );
-       assign out_tdata[k][15:0] = 16'b0;
     end
   endgenerate
 
+  //now we combine the streams back into two complex streams.
+  //we can guarantee that the streams are aligned, right?
+  join_complex #(.WIDTH(16)) join_complex_inst_0 (
+    .ii_tdata(out_tdata[0]),
+    .ii_tvalid(out_tvalid[0]),
+    .ii_tready(out_tready[0]),
+    .ii_tlast(out_tlast[0]),
+    .iq_tdata(out_tdata[1]),
+    .iq_tvalid(out_tvalid[1]),
+    .iq_tready(out_tready[1]),
+    .iq_tlast(out_tlast[1]),
+    .o_tdata(mux_tdata[0]),
+    .o_tvalid(mux_tvalid[0]),
+    .o_tready(mux_tready[0]),
+    .o_tlast(mux_tlast[0]));
+
+
+  join_complex #(.WIDTH(16)) join_complex_inst_1 (
+    .ii_tdata(out_tdata[3]),
+    .ii_tvalid(out_tvalid[3]),
+    .ii_tready(out_tready[3]),
+    .ii_tlast(out_tlast[3]),
+    .iq_tdata(out_tdata[2]),
+    .iq_tvalid(out_tvalid[2]),
+    .iq_tready(out_tready[2]),
+    .iq_tlast(out_tlast[2]),
+    .o_tdata(mux_tdata[1]),
+    .o_tvalid(mux_tvalid[1]),
+    .o_tready(mux_tready[1]),
+    .o_tlast(mux_tlast[1]));
 
   // Readback register values
   // TODO load these up

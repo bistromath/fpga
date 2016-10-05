@@ -52,12 +52,9 @@ module noc_block_magphase_gain #(
   wire [63:0] str_src_tdata[0:1];
   wire [1:0] str_src_tlast, str_src_tvalid, str_src_tready;
 
-//  wire [63:0] cmdout_tdata, ackin_tdata;
-//  wire        cmdout_tlast, cmdout_tvalid, cmdout_tready, ackin_tlast, ackin_tvalid, ackin_tready;
-
   wire [15:0] src_sid[0:1];
   wire [15:0] next_dst_sid[0:1], resp_out_dst_sid[0:1];
-  wire [15:0] resp_in_dst_sid;
+  wire [15:0] resp_in_dst_sid[0:1];
 
   // AXI Wrapper
   // input (sink) data
@@ -132,115 +129,46 @@ module noc_block_magphase_gain #(
     .str_sink_tready(str_sink_tready),
     // Stream Sources
     .str_src_tdata({str_src_tdata[1], str_src_tdata[0]}),
-    .str_src_tlast(str_src_tlast),
-    .str_src_tvalid(str_src_tvalid),
-    .str_src_tready(str_src_tready),
-    .clear_tx_seqnum(clear_tx_seqnum),
+    .str_src_tlast({str_src_tlast[1], str_src_tlast[0]}),
+    .str_src_tvalid({str_src_tvalid[1], str_src_tvalid[0]}),
+    .str_src_tready({str_src_tready[1], str_src_tready[0]}),
+    .clear_tx_seqnum({clear_tx_seqnum[1], clear_tx_seqnum[0]}),
     // Stream IDs
     .src_sid({src_sid[1], src_sid[0]}),
     .next_dst_sid({next_dst_sid[1], next_dst_sid[0]}),
-    .resp_in_dst_sid(resp_in_dst_sid),
-    .resp_out_dst_sid({resp_out_dst_sid[1], resp_out_dst_sid[0]}),
+    .resp_in_dst_sid(),
+    .resp_out_dst_sid(),
     .debug(debug));
 
   assign ackin_tready = 1'b1;
 
-  // AXI Wrapper - Convert RFNoC Shell interface into AXI stream interface
-  axi_wrapper #(
-    .SIMPLE_MODE(0)
-  )
-  axi_wrapper0 (
-    .clk(ce_clk),
-    .reset(ce_rst),
-    // RFNoC Shell
-    .clear_tx_seqnum(clear_tx_seqnum[0]),
-    .next_dst(next_dst_sid[0]),
-    .set_stb(),
-    .set_addr(),
-    .set_data(),
-    .i_tdata(str_sink_tdata),
-    .i_tlast(str_sink_tlast),
-    .i_tvalid(str_sink_tvalid),
-    .i_tready(str_sink_tready),
-    .o_tdata(str_src_tdata[0]),
-    .o_tlast(str_src_tlast[0]),
-    .o_tvalid(str_src_tvalid[0]),
-    .o_tready(str_src_tready[0]),
-    // Internal AXI streams
-    .m_axis_data_tdata(m_axis_data_tdata),
-    .m_axis_data_tuser(m_axis_data_tuser),
-    .m_axis_data_tlast(m_axis_data_tlast),
-    .m_axis_data_tvalid(m_axis_data_tvalid),
-    .m_axis_data_tready(m_axis_data_tready),
-    .s_axis_data_tdata(s_axis_data_tdata[0]),
-    .s_axis_data_tlast(s_axis_data_tlast[0]),
-    .s_axis_data_tvalid(s_axis_data_tvalid[0]),
-    .s_axis_data_tready(s_axis_data_tready[0]),
-    .s_axis_data_tuser(s_axis_data_tuser[0]),
-    .m_axis_config_tdata(),
-    .m_axis_config_tlast(),
-    .m_axis_config_tvalid(),
-    .m_axis_config_tready());
+  wire [127:0] out_tuser_pre[0:1];
+  
+  chdr_deframer chdr_deframer (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata(str_sink_tdata), .i_tlast(str_sink_tlast), .i_tvalid(str_sink_tvalid), .i_tready(str_sink_tready),
+    .o_tdata(m_axis_data_tdata), .o_tuser(m_axis_data_tuser), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
 
-  axi_wrapper #(
-    .SIMPLE_MODE(0)
-  )
-  axi_wrapper1 (
-    .clk(ce_clk),
-    .reset(ce_rst),
-    // RFNoC Shell
-    .clear_tx_seqnum(clear_tx_seqnum[1]),
-    .next_dst(next_dst_sid[1]),
-    .set_stb(),
-    .set_addr(),
-    .set_data(),
-    .i_tdata(),
-    .i_tlast(),
-    .i_tvalid(),
-    .i_tready(),
-    .o_tdata(str_src_tdata[1]),
-    .o_tlast(str_src_tlast[1]),
-    .o_tvalid(str_src_tvalid[1]),
-    .o_tready(str_src_tready[1]),
-    // Internal AXI streams
-    .m_axis_data_tdata(),
-    .m_axis_data_tuser(),
-    .m_axis_data_tlast(),
-    .m_axis_data_tvalid(),
-    .m_axis_data_tready(),
-    .s_axis_data_tdata(s_axis_data_tdata[1]),
-    .s_axis_data_tlast(s_axis_data_tlast[1]),
-    .s_axis_data_tvalid(s_axis_data_tvalid[1]),
-    .s_axis_data_tready(s_axis_data_tready[1]),
-    .s_axis_data_tuser(s_axis_data_tuser[1]),
-    .m_axis_config_tdata(),
-    .m_axis_config_tlast(),
-    .m_axis_config_tvalid(),
-    .m_axis_config_tready());
+  split_stream_fifo #(.WIDTH(128), .ACTIVE_MASK(4'b0011)) tuser_splitter (
+    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .i_tdata(m_axis_data_tuser), .i_tlast(1'b0), .i_tvalid(m_axis_data_tvalid & m_axis_data_tlast), .i_tready(),
+    .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(s_axis_data_tlast[0] & s_axis_data_tready[0]),
+    .o1_tdata(out_tuser_pre[1]), .o1_tlast(), .o1_tvalid(), .o1_tready(s_axis_data_tlast[1] & s_axis_data_tready[1]),
+    .o2_tready(1'b1), .o3_tready(1'b1));
 
-   cvita_hdr_modify cvita_hdr_modify_inst0 (
-      .header_in(m_axis_data_tuser),
-      .header_out(s_axis_data_tuser[0]),
-      .use_pkt_type(1'b0),  .pkt_type(),
-      .use_has_time(1'b0),  .has_time(),
-      .use_eob(1'b0),       .eob(),
-      .use_seqnum(1'b0),    .seqnum(),
-      .use_length(1'b0),    .length(),
-      .use_src_sid(1'b1),   .src_sid(src_sid[0]),
-      .use_dst_sid(1'b1),   .dst_sid(next_dst_sid[0]),
-      .use_vita_time(1'b0), .vita_time());
+  assign s_axis_data_tuser[0] = { out_tuser_pre[0][127:96], src_sid[0], next_dst_sid[0], out_tuser_pre[0][63:0] };
+  assign s_axis_data_tuser[1] = { out_tuser_pre[1][127:96], src_sid[1], next_dst_sid[1], out_tuser_pre[1][63:0] };
 
-   cvita_hdr_modify cvita_hdr_modify_inst1 (
-      .header_in(m_axis_data_tuser),
-      .header_out(s_axis_data_tuser[1]),
-      .use_pkt_type(1'b0),  .pkt_type(),
-      .use_has_time(1'b0),  .has_time(),
-      .use_eob(1'b0),       .eob(),
-      .use_seqnum(1'b0),    .seqnum(),
-      .use_length(1'b0),    .length(),
-      .use_src_sid(1'b1),   .src_sid(src_sid[1]),
-      .use_dst_sid(1'b1),   .dst_sid(next_dst_sid[1]),
-      .use_vita_time(1'b0), .vita_time());
+  chdr_framer #(.SIZE(10)) chdr_framer_0 (
+        .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum[0]),
+        .i_tdata(s_axis_data_tdata[0]), .i_tuser(s_axis_data_tuser[0]), .i_tlast(s_axis_data_tlast[0]), .i_tvalid(s_axis_data_tvalid[0]), .i_tready(s_axis_data_tready[0]),
+        .o_tdata(str_src_tdata[0]), .o_tlast(str_src_tlast[0]), .o_tvalid(str_src_tvalid[0]), .o_tready(str_src_tready[0]));
+    
+  chdr_framer #(.SIZE(10)) chdr_framer_1 (
+        .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum[1]),
+        .i_tdata(s_axis_data_tdata[1]), .i_tuser(s_axis_data_tuser[1]), .i_tlast(s_axis_data_tlast[1]), .i_tvalid(s_axis_data_tvalid[1]), .i_tready(s_axis_data_tready[1]),
+        .o_tdata(str_src_tdata[1]), .o_tlast(str_src_tlast[1]), .o_tvalid(str_src_tvalid[1]), .o_tready(str_src_tready[1]));
+    
 
   wire [31:0] magphase_axis_data_tdata;
   wire magphase_axis_data_tlast;
@@ -281,6 +209,8 @@ module noc_block_magphase_gain #(
   //modify the complex_to_magphase CORDIC IP to do the reverse...
   //
 
+  //this bullshit in cart_tdata is sign extension
+
   complex_to_magphase inst_complex_to_magphase (
      .aclk(ce_clk),
      .aresetn(~ce_rst),
@@ -293,8 +223,30 @@ module noc_block_magphase_gain #(
      .m_axis_dout_tready(magphase_axis_data_tready),
      .m_axis_dout_tvalid(magphase_axis_data_tvalid));
 
+  wire [31:0] phase_split_tdata;
+  split_stream_fifo #(.WIDTH(32), .ACTIVE_MASK(4'b0011)) inst_split_complex (
+      .clk(ce_clk),
+      .reset(ce_rst),
+      .clear(1'b0),
+      .i_tdata(magphase_axis_data_tdata),
+      .i_tlast(magphase_axis_data_tlast),
+      .i_tvalid(magphase_axis_data_tvalid),
+      .i_tready(magphase_axis_data_tready),
+      .o0_tdata(magnitude_axis_data_tdata),
+      .o0_tlast(magnitude_axis_data_tlast),
+      .o0_tvalid(magnitude_axis_data_tvalid),
+      .o0_tready(magnitude_axis_data_tready),
+      .o1_tdata(phase_split_tdata),
+      .o1_tlast(phase_axis_data_tlast),
+      .o1_tvalid(phase_axis_data_tvalid),
+      .o1_tready(phase_axis_data_tready),
+      .o2_tready(1'b1),
+      .o3_tready(1'b1));
+
+  assign phase_axis_data_tdata = phase_split_tdata[31:16];
+
   //so we split the output into two 16bit streams
-  split_complex #(.WIDTH(16)) inst_split_complex (
+/*  split_complex #(.WIDTH(16)) inst_split_complex (
      .i_tdata(magphase_axis_data_tdata),
      .i_tlast(magphase_axis_data_tlast),
      .i_tvalid(magphase_axis_data_tvalid),
@@ -308,7 +260,7 @@ module noc_block_magphase_gain #(
      .oi_tvalid(phase_axis_data_tvalid),
      .oi_tready(phase_axis_data_tready),
      .error());
-
+*/
   //and multiply the mag by its gain
   wire [25:0] mag_gained_axis_tdata;
   wire mag_gained_axis_tlast, mag_gained_axis_tvalid, mag_gained_axis_tready;
