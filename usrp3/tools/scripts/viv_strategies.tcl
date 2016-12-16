@@ -33,6 +33,7 @@ proc ::vivado_strategies::get_impl_preset {preset} {
             dict set strategy "post_place_phys_opt_design.is_enabled"   0
             dict set strategy "post_place_phys_opt_design.directive"    "Default"
             dict set strategy "route_design.directive"                  "Default"
+            dict set strategy "route_design.more_options"               ""
             dict set strategy "post_route_phys_opt_design.is_enabled"   0
             dict set strategy "post_route_phys_opt_design.directive"    "Default"
         }
@@ -45,6 +46,7 @@ proc ::vivado_strategies::get_impl_preset {preset} {
             dict set strategy "post_place_phys_opt_design.is_enabled"   1
             dict set strategy "post_place_phys_opt_design.directive"    "Explore"
             dict set strategy "route_design.directive"                  "Explore"
+            dict set strategy "route_design.more_options"               ""
             dict set strategy "post_route_phys_opt_design.is_enabled"   0
             dict set strategy "post_route_phys_opt_design.directive"    "Explore"
         }
@@ -57,6 +59,7 @@ proc ::vivado_strategies::get_impl_preset {preset} {
             dict set strategy "post_place_phys_opt_design.is_enabled"   1
             dict set strategy "post_place_phys_opt_design.directive"    "Explore"
             dict set strategy "route_design.directive"                  "Explore"
+            dict set strategy "route_design.more_options"               "-tns_cleanup"
             dict set strategy "post_route_phys_opt_design.is_enabled"   1
             dict set strategy "post_route_phys_opt_design.directive"    "Explore"
         }
@@ -104,8 +107,15 @@ proc ::vivado_strategies::implement_design {strategy} {
 
     # Route the current design
     set rt_dir [dict get $strategy "route_design.directive"]
-    route_design -directive $rt_dir
-    
+    puts "BUILDER: Choosing routing directive: $rt_dir"
+    if {[dict get $strategy "route_design.more_options"] eq ""} {
+        route_design -directive $rt_dir
+    } else {
+        set rt_more [dict get $strategy "route_design.more_options"]
+        puts "BUILDER: Choosing additional routing options: $rt_more"
+        route_design -directive $rt_dir $rt_more
+    }
+
     # Optimize the current routed netlist.
     if [dict get $strategy "post_route_phys_opt_design.is_enabled"] {
         set pr_physopt_dir [dict get $strategy "post_route_phys_opt_design.directive"]

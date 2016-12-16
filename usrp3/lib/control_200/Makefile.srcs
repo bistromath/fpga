@@ -1,0 +1,10 @@
+#
+# Copyright 2013 Ettus Research LLC
+#
+
+##################################################
+# Control Lib Sources (2xx devices)
+##################################################
+CONTROL_LIB_200_SRCS = $(abspath $(addprefix $(BASE_DIR)/../lib/control_200/, \
+cvita_uart.v \
+))

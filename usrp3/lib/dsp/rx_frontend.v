@@ -1,4 +1,6 @@
-
+//
+// Copyright 2014 Ettus Research LLC
+//
 module rx_frontend
   #(parameter BASE = 0,
     parameter IQCOMP_EN = 1)
@@ -39,11 +41,13 @@ module rx_frontend
 
    rx_dcoffset #(.WIDTH(24),.ADDR(BASE+3)) rx_dcoffset_i
      (.clk(clk),.rst(rst),.set_stb(set_stb),.set_addr(set_addr),.set_data(set_data),
-      .in({adc_i,8'b00}),.out(adc_i_ofs));
+      .in({adc_i,8'b00}), .in_stb(1'b1),
+      .out(adc_i_ofs), .out_stb());
    
    rx_dcoffset #(.WIDTH(24),.ADDR(BASE+4)) rx_dcoffset_q
      (.clk(clk),.rst(rst),.set_stb(set_stb),.set_addr(set_addr),.set_data(set_data),
-      .in({adc_q,8'b00}),.out(adc_q_ofs));
+      .in({adc_q,8'b00}), .in_stb(1'b1),
+      .out(adc_q_ofs), .out_stb());
    
    generate
       if(IQCOMP_EN == 1)
@@ -55,10 +59,10 @@ module rx_frontend
 	   end
 
 	   MULT18X18S mult_mag_corr
-	     (.P(corr_i), .A(adc_i_ofs[23:6]), .B(mag_corr), .C(clk), .CE(1), .R(rst) ); 
+	     (.P(corr_i), .A(adc_i_ofs[23:6]), .B(mag_corr), .C(clk), .CE(1'b1), .R(rst) ); 
 	   
 	   MULT18X18S mult_phase_corr
-	     (.P(corr_q), .A(adc_i_ofs[23:6]), .B(phase_corr), .C(clk), .CE(1), .R(rst) );
+	     (.P(corr_q), .A(adc_i_ofs[23:6]), .B(phase_corr), .C(clk), .CE(1'b1), .R(rst) );
 	   
 	   add2_and_clip_reg #(.WIDTH(24)) add_clip_i
 	     (.clk(clk), .rst(rst), 
