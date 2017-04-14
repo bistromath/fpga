@@ -4,6 +4,7 @@
 
 module noc_block_magphase_gain #(
   parameter NOC_ID = 64'h8844_0000_0000_0000,
+  parameter NOC_ID_2 = 64'h8844_0001_0000_0000,
   parameter STR_SINK_FIFOSIZE = 11)
 (
   input bus_clk,
@@ -12,15 +13,15 @@ module noc_block_magphase_gain #(
   input ce_clk,
   input ce_rst,
 
-  input [63:0] i_tdata,
-  input i_tlast,
-  input i_tvalid,
-  output i_tready,
+  input [127:0] i_tdata,
+  input [1:0] i_tlast,
+  input [1:0] i_tvalid,
+  output [1:0] i_tready,
 
-  output [63:0] o_tdata,
-  output o_tlast,
-  output o_tvalid,
-  input  o_tready,
+  output [127:0] o_tdata,
+  output [1:0] o_tlast,
+  output [1:0] o_tvalid,
+  input  [1:0] o_tready,
 
   output [63:0] debug);
 
@@ -36,8 +37,8 @@ module noc_block_magphase_gain #(
   // Wires
   //----------------------------------------------------------------------------
   // Readback register address
-  wire [7:0] rb_addr[1:0];
-  reg [63:0] rb_data[1:0];
+//  wire [7:0] rb_addr[0:1];
+//  reg [63:0] rb_data[0:1];
 
   // RFNoC Shell
   wire [31:0] set_data[0:1];
@@ -46,11 +47,11 @@ module noc_block_magphase_gain #(
 
   wire [1:0] clear_tx_seqnum;
 
-  wire [63:0] str_sink_tdata;
-  wire str_sink_tlast, str_sink_tvalid, str_sink_tready;
+  wire [63:0] str_sink_tdata[0:1];
+  wire [1:0]  str_sink_tlast, str_sink_tvalid, str_sink_tready;
 
   wire [63:0] str_src_tdata[0:1];
-  wire [1:0] str_src_tlast, str_src_tvalid, str_src_tready;
+  wire [1:0]  str_src_tlast, str_src_tvalid, str_src_tready;
 
   wire [15:0] src_sid[0:1];
   wire [15:0] next_dst_sid[0:1], resp_out_dst_sid[0:1];
@@ -58,17 +59,14 @@ module noc_block_magphase_gain #(
 
   // AXI Wrapper
   // input (sink) data
-  wire [31:0]  m_axis_data_tdata;
-  wire [127:0] m_axis_data_tuser;
-  wire m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
+  wire [31:0] m_axis_data_tdata;
+  wire        m_axis_data_tlast, m_axis_data_tvalid, m_axis_data_tready;
 
   // output (source) data
-  wire [31:0]  s_axis_data_tdata[0:1];
-  wire [127:0] s_axis_data_tuser[0:1];
-  wire [1:0] s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
+  wire [31:0] s_axis_data_tdata[0:1];
+  wire [1:0]  s_axis_data_tlast, s_axis_data_tvalid, s_axis_data_tready;
 
-  wire [63:0]   cmdout_tdata, ackin_tdata;
-  wire          cmdout_tlast, cmdout_tvalid, cmdout_tready, ackin_tlast, ackin_tvalid, ackin_tready;
+  wire [127:0] m_axis_data_tuser, s_axis_data_tuser_1;
 
   //----------------------------------------------------------------------------
   // Registers
@@ -91,84 +89,155 @@ module noc_block_magphase_gain #(
     .NOC_ID(NOC_ID),
     .STR_SINK_FIFOSIZE(STR_SINK_FIFOSIZE),
     .INPUT_PORTS(1),
-    .OUTPUT_PORTS(2))
+    .OUTPUT_PORTS(1))
   noc_shell (
     .bus_clk(bus_clk),
     .bus_rst(bus_rst),
-    .i_tdata(i_tdata),
-    .i_tlast(i_tlast),
-    .i_tvalid(i_tvalid),
-    .i_tready(i_tready),
-    .o_tdata(o_tdata),
-    .o_tlast(o_tlast),
-    .o_tvalid(o_tvalid),
-    .o_tready(o_tready),
+    .i_tdata(i_tdata[63:0]),
+    .i_tlast(i_tlast[0]),
+    .i_tvalid(i_tvalid[0]),
+    .i_tready(i_tready[0]),
+    .o_tdata(o_tdata[63:0]),
+    .o_tlast(o_tlast[0]),
+    .o_tvalid(o_tvalid[0]),
+    .o_tready(o_tready[0]),
     // Computer Engine Clock Domain
     .clk(ce_clk),
     .reset(ce_rst),
     // Control Sink
-    .set_data({set_data[1], set_data[0]}),
-    .set_addr({set_addr[1], set_addr[0]}),
-    .set_stb({set_stb[1], set_stb[0]}),
-    .rb_data({rb_data[1], rb_data[0]}),
-    .rb_stb(2'b1),
-    .rb_addr({rb_addr[1], rb_addr[0]}),
+    .set_data(set_data[0]),
+    .set_addr(set_addr[0]),
+    .set_stb(set_stb[0]),
+    .rb_data(),
+    .rb_stb(1'b1),
+    .rb_addr(),
     // Control Source (unused)
-    .cmdout_tdata(cmdout_tdata),
-    .cmdout_tlast(cmdout_tlast),
-    .cmdout_tvalid(cmdout_tvalid),
-    .cmdout_tready(cmdout_tready),
-    .ackin_tdata(ackin_tdata),
-    .ackin_tlast(ackin_tlast),
-    .ackin_tvalid(ackin_tvalid),
-    .ackin_tready(ackin_tready),
+    .cmdout_tdata(),
+    .cmdout_tlast(),
+    .cmdout_tvalid(),
+    .cmdout_tready(),
+    .ackin_tdata(),
+    .ackin_tlast(),
+    .ackin_tvalid(),
+    .ackin_tready(),
     // Stream Sink
-    .str_sink_tdata(str_sink_tdata),
-    .str_sink_tlast(str_sink_tlast),
-    .str_sink_tvalid(str_sink_tvalid),
-    .str_sink_tready(str_sink_tready),
+    .str_sink_tdata(str_sink_tdata[0]),
+    .str_sink_tlast(str_sink_tlast[0]),
+    .str_sink_tvalid(str_sink_tvalid[0]),
+    .str_sink_tready(str_sink_tready[0]),
     // Stream Sources
-    .str_src_tdata({str_src_tdata[1], str_src_tdata[0]}),
-    .str_src_tlast({str_src_tlast[1], str_src_tlast[0]}),
-    .str_src_tvalid({str_src_tvalid[1], str_src_tvalid[0]}),
-    .str_src_tready({str_src_tready[1], str_src_tready[0]}),
-    .clear_tx_seqnum({clear_tx_seqnum[1], clear_tx_seqnum[0]}),
+    .str_src_tdata(str_src_tdata[0]),
+    .str_src_tlast(str_src_tlast[0]),
+    .str_src_tvalid(str_src_tvalid[0]),
+    .str_src_tready(str_src_tready[0]),
+    .clear_tx_seqnum(clear_tx_seqnum[0]),
     // Stream IDs
-    .src_sid({src_sid[1], src_sid[0]}),
-    .next_dst_sid({next_dst_sid[1], next_dst_sid[0]}),
+    .src_sid(src_sid[0]),
+    .next_dst_sid(next_dst_sid[0]),
     .resp_in_dst_sid(),
     .resp_out_dst_sid(),
     .debug(debug));
 
+  noc_shell #(
+    .NOC_ID(NOC_ID_2),
+    .STR_SINK_FIFOSIZE(STR_SINK_FIFOSIZE),
+    .INPUT_PORTS(1),
+    .OUTPUT_PORTS(1))
+  inst_noc_shell_1 (
+    .bus_clk(bus_clk),
+    .bus_rst(bus_rst),
+    .i_tdata(i_tdata[127:64]),
+    .i_tlast(i_tlast[1]),
+    .i_tvalid(i_tvalid[1]),
+    .i_tready(i_tready[1]),
+    .o_tdata(o_tdata[127:64]),
+    .o_tlast(o_tlast[1]),
+    .o_tvalid(o_tvalid[1]),
+    .o_tready(o_tready[1]),
+    // Computer Engine Clock Domain
+    .clk(ce_clk),
+    .reset(ce_rst),
+    // Control Sink
+    .set_data(),
+    .set_addr(),
+    .set_stb(),
+    .rb_data(),
+    .rb_stb(1'b1),
+    .rb_addr(),
+    // Control Source (unused)
+    .cmdout_tdata(),
+    .cmdout_tlast(),
+    .cmdout_tvalid(),
+    .cmdout_tready(),
+    .ackin_tdata(),
+    .ackin_tlast(),
+    .ackin_tvalid(),
+    .ackin_tready(),
+    // Stream Sink
+    .str_sink_tdata(),
+    .str_sink_tlast(),
+    .str_sink_tvalid(),
+    .str_sink_tready(),
+    // Stream Sources
+    .str_src_tdata(str_src_tdata[1]),
+    .str_src_tlast(str_src_tlast[1]),
+    .str_src_tvalid(str_src_tvalid[1]),
+    .str_src_tready(str_src_tready[1]),
+    .clear_tx_seqnum(clear_tx_seqnum[1]),
+    // Stream IDs
+    .src_sid(src_sid[1]),
+    .next_dst_sid(next_dst_sid[1]),
+    .resp_in_dst_sid(),
+    .resp_out_dst_sid(),
+    .debug());
+
   assign ackin_tready = 1'b1;
 
-  wire [127:0] out_tuser_pre[0:1];
-  
-  chdr_deframer chdr_deframer (
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
-    .i_tdata(str_sink_tdata), .i_tlast(str_sink_tlast), .i_tvalid(str_sink_tvalid), .i_tready(str_sink_tready),
-    .o_tdata(m_axis_data_tdata), .o_tuser(m_axis_data_tuser), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
+  axi_wrapper #(.MTU(10), .SIMPLE_MODE(1)) inst_axi_wrapper_0(
+    .clk(ce_clk), .reset(ce_rst), .clear_tx_seqnum(clear_tx_seqnum[0]),
+    .next_dst(next_dst_sid[0]),
+    .set_stb(set_stb[0]), .set_addr(set_addr[0]), .set_data(set_data[0]),
+    .i_tdata(str_sink_tdata[0]), .i_tlast(str_sink_tlast[0]), .i_tvalid(str_sink_tvalid[0]), .i_tready(str_sink_tready[0]),
+    .o_tdata(str_src_tdata[0]), .o_tlast(str_src_tlast[0]), .o_tvalid(str_src_tvalid[0]), .o_tready(str_src_tready[0]),
+    .m_axis_data_tdata(m_axis_data_tdata), .m_axis_data_tlast(m_axis_data_tlast), .m_axis_data_tvalid(m_axis_data_tvalid), .m_axis_data_tready(m_axis_data_tready), .m_axis_data_tuser(m_axis_data_tuser),
+    .s_axis_data_tdata(s_axis_data_tdata[0]), .s_axis_data_tlast(s_axis_data_tlast[0]), .s_axis_data_tvalid(s_axis_data_tvalid[0]), .s_axis_data_tready(s_axis_data_tready[0]));
 
-  split_stream_fifo #(.WIDTH(128), .ACTIVE_MASK(4'b0011)) tuser_splitter (
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
-    .i_tdata(m_axis_data_tuser), .i_tlast(1'b0), .i_tvalid(m_axis_data_tvalid & m_axis_data_tlast), .i_tready(),
-    .o0_tdata(out_tuser_pre[0]), .o0_tlast(), .o0_tvalid(), .o0_tready(s_axis_data_tlast[0] & s_axis_data_tready[0]),
-    .o1_tdata(out_tuser_pre[1]), .o1_tlast(), .o1_tvalid(), .o1_tready(s_axis_data_tlast[1] & s_axis_data_tready[1]),
-    .o2_tready(1'b1), .o3_tready(1'b1));
+  axi_wrapper #(.MTU(10), .SIMPLE_MODE(0)) inst_axi_wrapper_1(
+    .clk(ce_clk), .reset(ce_rst), .clear_tx_seqnum(clear_tx_seqnum[1]),
+    .next_dst(next_dst_sid[1]),
+    .set_stb(), .set_addr(), .set_data(),
+    .i_tdata(), .i_tlast(), .i_tvalid(), .i_tready(),
+    .o_tdata(str_src_tdata[1]), .o_tlast(str_src_tlast[1]), .o_tvalid(str_src_tvalid[1]), .o_tready(str_src_tready[1]),
+    .m_axis_data_tdata(), .m_axis_data_tlast(), .m_axis_data_tvalid(), .m_axis_data_tready(1'b1),
+    .s_axis_data_tdata(s_axis_data_tdata[1]), .s_axis_data_tlast(s_axis_data_tlast[1]), .s_axis_data_tvalid(s_axis_data_tvalid[1]), .s_axis_data_tready(s_axis_data_tready[1]), .s_axis_data_tuser(s_axis_data_tuser_1_reg));
 
-  assign s_axis_data_tuser[0] = { out_tuser_pre[0][127:96], src_sid[0], next_dst_sid[0], out_tuser_pre[0][63:0] };
-  assign s_axis_data_tuser[1] = { out_tuser_pre[1][127:96], src_sid[1], next_dst_sid[1], out_tuser_pre[1][63:0] };
+  //i uh think this works?
+  reg sof_in = 1'b1;
+  reg [127:0] m_axis_data_tuser_reg;
+  always @(posedge ce_clk) begin
+    if(ce_rst | clear_tx_seqnum[0])
+      sof_in <= 1'b1;
+    if(m_axis_data_tvalid & m_axis_data_tready)
+      if(m_axis_data_tlast)
+        sof_in <= 1'b1;
+      else
+        sof_in <= 1'b0;
+    if(sof_in & m_axis_data_tvalid & m_axis_data_tready)
+      m_axis_data_tuser_reg <= m_axis_data_tuser;
+  end
 
-  chdr_framer #(.SIZE(10)) chdr_framer_0 (
-        .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum[0]),
-        .i_tdata(s_axis_data_tdata[0]), .i_tuser(s_axis_data_tuser[0]), .i_tlast(s_axis_data_tlast[0]), .i_tvalid(s_axis_data_tvalid[0]), .i_tready(s_axis_data_tready[0]),
-        .o_tdata(str_src_tdata[0]), .o_tlast(str_src_tlast[0]), .o_tvalid(str_src_tvalid[0]), .o_tready(str_src_tready[0]));
-    
-  chdr_framer #(.SIZE(10)) chdr_framer_1 (
-        .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum[1]),
-        .i_tdata(s_axis_data_tdata[1]), .i_tuser(s_axis_data_tuser[1]), .i_tlast(s_axis_data_tlast[1]), .i_tvalid(s_axis_data_tvalid[1]), .i_tready(s_axis_data_tready[1]),
-        .o_tdata(str_src_tdata[1]), .o_tlast(str_src_tlast[1]), .o_tvalid(str_src_tvalid[1]), .o_tready(str_src_tready[1]));
-    
+  cvita_hdr_modify cvita_hdr_modify_inst(
+    .header_in(m_axis_data_tuser_reg),
+    .header_out(s_axis_data_tuser_1),
+    .use_pkt_type(1'b0), .pkt_type(),
+    .use_has_time(1'b0), .has_time(),
+    .use_eob(1'b0), .eob(),
+    .use_seqnum(1'b0), .seqnum(),
+    .use_length(1'b0), .length(),
+    .use_payload_length(1'b0), .payload_length(),
+    .use_src_sid(1'b1), .src_sid(src_sid[1]),
+    .use_dst_sid(1'b1), .dst_sid(next_dst_sid[1]),
+    .use_vita_time(1'b0), .vita_time());
 
   wire [31:0] magphase_axis_data_tdata;
   wire magphase_axis_data_tlast;
