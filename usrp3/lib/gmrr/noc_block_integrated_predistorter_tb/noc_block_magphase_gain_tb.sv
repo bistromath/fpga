@@ -19,10 +19,15 @@ module noc_block_magphase_gain_tb();
   localparam NUM_CE         = 2;  // Number of Computation Engines / User RFNoC blocks to simulate
   localparam NUM_STREAMS    = 2;  // Number of test bench streams
   `RFNOC_SIM_INIT(NUM_CE, NUM_STREAMS, BUS_CLK_PERIOD, CE_CLK_PERIOD);
+  reg [15:0] taps[0:127];
+  initial 
+    $readmemh("/home/nick/clabs/clabs_15/uhd/fpga-src/usrp3/lib/gmrr/predistort_tb/sine.list", taps);
 
-  `RFNOC_ADD_BLOCK_CUSTOM(noc_block_magphase_gain_mag, 0);
+  `RFNOC_ADD_BLOCK(noc_block_integrated_predistorter, 0);
+
+/*  `RFNOC_ADD_BLOCK_CUSTOM(noc_block_magphase_gain_mag, 0);
   `RFNOC_ADD_BLOCK_CUSTOM(noc_block_magphase_gain_norm, 1);
-  noc_block_magphase_gain noc_block_magphase_gain (
+  noc_block_integrated_predistorter noc_block_magphase_gain (
 	.ce_clk(ce_clk), .ce_rst(ce_rst),
 	.bus_clk(bus_clk), .bus_rst(bus_rst),
 	.i_tdata({noc_block_magphase_gain_norm_i_tdata, noc_block_magphase_gain_mag_i_tdata}),
@@ -33,7 +38,7 @@ module noc_block_magphase_gain_tb();
 	.o_tlast({noc_block_magphase_gain_norm_o_tlast, noc_block_magphase_gain_mag_o_tlast}),
 	.o_tvalid({noc_block_magphase_gain_norm_o_tvalid, noc_block_magphase_gain_mag_o_tvalid}),
 	.o_tready({noc_block_magphase_gain_norm_o_tready, noc_block_magphase_gain_mag_o_tready})
-  );
+  );*/
 
   localparam SPP         = 256; // Samples per packet
   localparam NUM_PASSES  = 2;
@@ -74,18 +79,18 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     `TEST_CASE_START("Check NoC ID");
     // Read NOC IDs
-    tb_streamer.read_reg(sid_noc_block_magphase_gain_mag, RB_NOC_ID, readback);
+    tb_streamer.read_reg(sid_noc_block_integrated_predistorter, RB_NOC_ID, readback);
     $display("Read mag/phase NOC ID: %16x", readback);
-    `ASSERT_ERROR(readback == noc_block_magphase_gain.NOC_ID, "Incorrect NOC ID");
+    `ASSERT_ERROR(readback == noc_block_integrated_predistorter.NOC_ID, "Incorrect NOC ID");
     `TEST_CASE_DONE(1);
 
     /********************************************************
     ** Test 3 -- Connect RFNoC blocks
     ********************************************************/
     `TEST_CASE_START("Connect RFNoC blocks");
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_tb,0,noc_block_magphase_gain,0,SC16,SPP);
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain_mag,0,noc_block_tb,0,SC16,SPP);
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain_norm,0,noc_block_tb,1,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_tb,0,noc_block_integrated_predistorter,0,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_integrated_predistorter,0,noc_block_tb,0,SC16,SPP);
+//    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain_norm,0,noc_block_tb,1,SC16,SPP);
     `TEST_CASE_DONE(1);
 
     /********************************************************
@@ -93,8 +98,22 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     `TEST_CASE_START("Setup Mag/Phase block");
     //TODO set magnitude and phase gains here
-    tb_streamer.write_reg(sid_noc_block_magphase_gain_mag, noc_block_magphase_gain.SR_MAG_GAIN, 256);
-    tb_streamer.write_reg(sid_noc_block_magphase_gain_mag, noc_block_magphase_gain.SR_SQUELCH_LEVEL, 8000);
+    tb_streamer.write_reg(sid_noc_block_integrated_predistorter, noc_block_integrated_predistorter.SR_MAG_GAIN, 256);
+    tb_streamer.write_reg(sid_noc_block_integrated_predistorter, noc_block_integrated_predistorter.SR_SQUELCH_LEVEL, 8000);
+    /* load predistorter tables */
+    begin
+      logic [31:0] send_word;
+      for (int o = 0; o < 4; o++) begin
+        $display("Writing taps for predistorter %0d", o);
+        for (int n = 0; n < 127; n++) begin
+            send_word[31:16] = 0;
+            send_word[15:0]  = taps[n];
+            tb_streamer.write_reg(sid_noc_block_integrated_predistorter, noc_block_integrated_predistorter.SR_AXI_CONFIG+2*o, send_word);
+            if (n==127)
+                tb_streamer.write_reg(sid_noc_block_integrated_predistorter, noc_block_integrated_predistorter.SR_AXI_CONFIG+2*o+1, 32'b1);
+        end
+      end
+    end
     `TEST_CASE_DONE(1);
 
     /********************************************************

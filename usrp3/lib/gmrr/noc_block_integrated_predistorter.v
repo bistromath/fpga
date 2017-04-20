@@ -2,7 +2,7 @@
 // Copyright 2015 GMRR
 //
 
-module noc_block_magphase_gain #(
+module noc_block_integrated_predistorter #(
   parameter NOC_ID = 64'h9955_0000_0000_0000,
   parameter NOC_ID_2 = 64'h9955_0001_0000_0000,
   parameter STR_SINK_FIFOSIZE = 11)
@@ -30,6 +30,7 @@ module noc_block_magphase_gain #(
   //----------------------------------------------------------------------------
 
   // Settings registers addresses
+  localparam SR_AXI_CONFIG    = 129;
   localparam SR_MAG_GAIN      = 192;
   localparam SR_SQUELCH_LEVEL = 193;
 
@@ -191,6 +192,29 @@ module noc_block_magphase_gain #(
     .resp_out_dst_sid(),
     .debug());
 
+  /* Configuration FIFO to set predistorter taps.
+   */
+  wire [15:0] taps_tdata[0:3];
+  wire [3:0] taps_tlast;
+  wire [3:0] taps_tvalid;
+  wire [3:0] taps_tready;
+  genvar p;
+  generate
+    for (p = 0; p < 4; p = p + 1) begin
+       //note the +15 (vs. +31) such that we're only assigning the lower 16b.
+       axi_fifo #(.WIDTH(17), .SIZE(8)) config_stream (
+          .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+          .i_tdata({(set_addr[0] == (SR_AXI_CONFIG+2*p+1)),set_data[0][15:0]}),
+          .i_tvalid(set_stb[0] & ((set_addr[0] == (SR_AXI_CONFIG+2*p))|(set_addr[0] == (SR_AXI_CONFIG+2*p+1)))),
+          .i_tready(),
+          .o_tdata({taps_tlast[p],taps_tdata[p]}),
+          .o_tvalid(taps_tvalid[p]),
+          .o_tready(taps_tready[p]),
+          .occupied(), .space()
+       );
+    end
+  endgenerate
+
   axi_wrapper #(.MTU(10), .SIMPLE_MODE(1)) inst_axi_wrapper_0(
     .clk(ce_clk), .reset(ce_rst), .clear_tx_seqnum(clear_tx_seqnum[0]),
     .next_dst(next_dst_sid[0]),
@@ -222,10 +246,10 @@ module noc_block_magphase_gain #(
   end
   wire header_fifo_i_tvalid = sof_in & m_axis_data_tvalid & m_axis_data_tready;
   axi_fifo_short #(.WIDTH(128)) header_fifo
-    (.clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
+    (.clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum[0]),
      .i_tdata(m_axis_data_tuser),
      .i_tvalid(header_fifo_i_tvalid), .i_tready(),
-     .o_tdata(m_axis_data_tuser_reg), .o_tvalid(), .o_tready(s_axis_data_tlast[1] & s_axis_data_tvalid & s_axis_data_tready),
+     .o_tdata(m_axis_data_tuser_reg), .o_tvalid(), .o_tready(s_axis_data_tlast[1] & s_axis_data_tvalid[1] & s_axis_data_tready[1]),
      .occupied(), .space());
 
   cvita_hdr_modify cvita_hdr_modify_inst(
@@ -241,10 +265,10 @@ module noc_block_magphase_gain #(
     .use_dst_sid(1'b1), .dst_sid(next_dst_sid[1]),
     .use_vita_time(1'b0), .vita_time());
 
-  wire [31:0] magphase_axis_data_tdata;
-  wire magphase_axis_data_tlast;
-  wire magphase_axis_data_tready;
-  wire magphase_axis_data_tvalid;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire [31:0] magphase_axis_data_tdata;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire magphase_axis_data_tlast;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire magphase_axis_data_tready;
+  (* keep = "true",dont_touch="true",mark_debug="true" *) wire magphase_axis_data_tvalid;
   wire [15:0] magnitude_axis_data_tdata;
   wire magnitude_axis_data_tlast;
   wire magnitude_axis_data_tready;
@@ -316,22 +340,6 @@ module noc_block_magphase_gain #(
 
   assign phase_axis_data_tdata = phase_split_tdata[31:16];
 
-  //so we split the output into two 16bit streams
-/*  split_complex #(.WIDTH(16)) inst_split_complex (
-     .i_tdata(magphase_axis_data_tdata),
-     .i_tlast(magphase_axis_data_tlast),
-     .i_tvalid(magphase_axis_data_tvalid),
-     .i_tready(magphase_axis_data_tready),
-     .oq_tdata(magnitude_axis_data_tdata),
-     .oq_tlast(magnitude_axis_data_tlast),
-     .oq_tvalid(magnitude_axis_data_tvalid),
-     .oq_tready(magnitude_axis_data_tready),
-     .oi_tdata(phase_axis_data_tdata),
-     .oi_tlast(phase_axis_data_tlast),
-     .oi_tvalid(phase_axis_data_tvalid),
-     .oi_tready(phase_axis_data_tready),
-     .error());
-*/
   //and multiply the mag by its gain
   wire [25:0] mag_gained_axis_tdata;
   wire mag_gained_axis_tlast, mag_gained_axis_tvalid, mag_gained_axis_tready;
@@ -395,18 +403,84 @@ module noc_block_magphase_gain #(
    .m_axis_dout_tvalid(normal_axis_data_tvalid),
    .m_axis_dout_tlast(normal_axis_data_tlast));
 
-  //two output streams now; output 0 is the magnitude data
-  //expressed as SC16 with the Q set to zero.
-  assign s_axis_data_tdata[0] = {mag_clipped_axis_tdata, 16'b0};
-  assign s_axis_data_tlast[0] = mag_clipped_axis_tlast;
-  assign mag_clipped_axis_tready = s_axis_data_tready[0];
-  assign s_axis_data_tvalid[0] = mag_clipped_axis_tvalid;
+  /* BEGIN PREDISTORTER
+   */
+  //you'll want to split that stream into four streams.
+  wire [15:0] input_split_tdata[0:3];
+  wire [3:0] input_split_tlast, input_split_tvalid, input_split_tready;
+  split_stream #(.WIDTH(16), .ACTIVE_MASK(4'b1111)) input_splitter (
+     .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+     .i_tdata(mag_clipped_axis_tdata), .i_tlast(mag_clipped_axis_tlast), .i_tvalid(mag_clipped_axis_tvalid), .i_tready(mag_clipped_axis_tready),
+     .o0_tdata(input_split_tdata[0]), .o0_tlast(input_split_tlast[0]), .o0_tvalid(input_split_tvalid[0]), .o0_tready(input_split_tready[0]),
+     .o1_tdata(input_split_tdata[1]), .o1_tlast(input_split_tlast[1]), .o1_tvalid(input_split_tvalid[1]), .o1_tready(input_split_tready[1]),
+     .o2_tdata(input_split_tdata[2]), .o2_tlast(input_split_tlast[2]), .o2_tvalid(input_split_tvalid[2]), .o2_tready(input_split_tready[2]),
+     .o3_tdata(input_split_tdata[3]), .o3_tlast(input_split_tlast[3]), .o3_tvalid(input_split_tvalid[3]), .o3_tready(input_split_tready[3])
+  );
 
-  //output 1 is the normalized signal
-  //just a regular SC16 stream.
-  assign s_axis_data_tdata[1] = normal_axis_data_tdata;
-  assign s_axis_data_tlast[1] = normal_axis_data_tlast;
-  assign normal_axis_data_tready = s_axis_data_tready[1];
-  assign s_axis_data_tvalid[1] = normal_axis_data_tvalid;
+  wire [15:0] pd_out_tdata[0:3];
+  wire [3:0]  pd_out_tlast, pd_out_tvalid, pd_out_tready;
+  genvar k;
+  generate
+    for(k = 0; k < 4; k = k + 1) begin
+       //instantiate a predistorter
+       //the predistorter operates on magnitudes, which come in here on the
+       //I channel (bits 31-16). out_tdata is 32b wide but we only set the upper
+       //16.
+       //PRODUCTION IS 13 DEPTH
+       predistort #(.WIDTH(16), .DEPTH(13)) predistort_inst (
+          .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+          .i_tdata(input_split_tdata[k]), .i_tlast(input_split_tlast[k]), .i_tvalid(input_split_tvalid[k]), .i_tready(input_split_tready[k]),
+          .o_tdata(pd_out_tdata[k]), .o_tlast(pd_out_tlast[k]), .o_tvalid(pd_out_tvalid[k]), .o_tready(pd_out_tready[k]),
+          .taps_tdata(taps_tdata[k]), .taps_tlast(taps_tlast[k]), .taps_tvalid(taps_tvalid[k]), .taps_tready(taps_tready[k])
+       );
+    end
+  endgenerate
+
+  wire [31:0] joined_pd_out_tdata[0:1];
+  wire [1:0]  joined_pd_out_tvalid, joined_pd_out_tlast, joined_pd_out_tready;
+  join_complex #(.WIDTH(16)) join_complex_inst_0 (
+    .ii_tdata(pd_out_tdata[0]),
+    .ii_tvalid(pd_out_tvalid[0]),
+    .ii_tready(pd_out_tready[0]),
+    .ii_tlast(pd_out_tlast[0]),
+    .iq_tdata(pd_out_tdata[1]),
+    .iq_tvalid(pd_out_tvalid[1]),
+    .iq_tready(pd_out_tready[1]),
+    .iq_tlast(pd_out_tlast[1]),
+    .o_tdata(joined_pd_out_tdata[0]),
+    .o_tvalid(joined_pd_out_tvalid[0]),
+    .o_tready(joined_pd_out_tready[0]),
+    .o_tlast(joined_pd_out_tlast[0]));
+  join_complex #(.WIDTH(16)) join_complex_inst_1 (
+    .ii_tdata(pd_out_tdata[3]),
+    .ii_tvalid(pd_out_tvalid[3]),
+    .ii_tready(pd_out_tready[3]),
+    .ii_tlast(pd_out_tlast[3]),
+    .iq_tdata(pd_out_tdata[2]),
+    .iq_tvalid(pd_out_tvalid[2]),
+    .iq_tready(pd_out_tready[2]),
+    .iq_tlast(pd_out_tlast[2]),
+    .o_tdata(joined_pd_out_tdata[1]),
+    .o_tvalid(joined_pd_out_tvalid[1]),
+    .o_tready(joined_pd_out_tready[1]),
+    .o_tlast(joined_pd_out_tlast[1]));
+
+  wire [31:0] mult_out_tdata;
+  wire mult_out_tlast, mult_out_tready, mult_out_tvalid;
+  cmul cmul (
+      .clk(ce_clk), .reset(ce_rst),
+      .a_tdata(normal_axis_data_tdata), .a_tlast(normal_axis_data_tlast), .a_tvalid(normal_axis_data_tvalid), .a_tready(normal_axis_data_tready),
+      .b_tdata(joined_pd_out_tdata[0]), .b_tlast(joined_pd_out_tlast[0]), .b_tvalid(joined_pd_out_tvalid[0]), .b_tready(joined_pd_out_tready[0]),
+      .o_tdata(mult_out_tdata), .o_tlast(mult_out_tlast), .o_tvalid(mult_out_tvalid), .o_tready(mult_out_tready));
+
+  assign s_axis_data_tdata[0] = mult_out_tdata;
+  assign s_axis_data_tlast[0] = mult_out_tlast;
+  assign mult_out_tready = s_axis_data_tready[0];
+  assign s_axis_data_tvalid[0] = mult_out_tvalid;
+
+  assign s_axis_data_tdata[1] = joined_pd_out_tdata[1];
+  assign s_axis_data_tlast[1] = joined_pd_out_tlast[1];
+  assign joined_pd_out_tready[1] = s_axis_data_tready[1];
+  assign s_axis_data_tvalid[1] = joined_pd_out_tvalid[1];
 
 endmodule
