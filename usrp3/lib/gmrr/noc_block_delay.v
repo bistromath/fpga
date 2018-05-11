@@ -13,7 +13,7 @@
 //`default_nettype none
 module noc_block_delay #(
   parameter NOC_ID = 64'h64656C6179000000,
-  parameter STR_SINK_FIFOSIZE = 12,
+  parameter STR_SINK_FIFOSIZE = 14,
   parameter MAX_DIFF_DELAY_LOG2 = 10, //maximum differential delay between I and Q
   parameter MAX_DELAY_LOG2 = 16) //maximum delay (no FIFO so no performance impact here)
                                  //NB: don't set |delay_i-delay_q| > 2**MAX_DIFF_DELAY_LOG2
@@ -105,18 +105,50 @@ module noc_block_delay #(
   wire         s_axis_data_tready;
   wire [127:0] s_axis_data_tuser;
 
-  //if we want to handle seqnum manually (because we're generating our own packets),
-  //we can't use the axi_wrapper (it forces 1-to-1 seqnum in chdr_framer). so we have
-  //to use chdr_deframer and chdr_framer.
-  chdr_deframer inst_chdr_deframer (
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
-    .i_tdata(str_sink_tdata), .i_tlast(str_sink_tlast), .i_tvalid(str_sink_tvalid), .i_tready(str_sink_tready),
-    .o_tdata(m_axis_data_tdata), .o_tuser(), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
+  // AXI Wrapper - Convert RFNoC Shell interface into AXI stream interface
+//  axi_wrapper #(
+//    .SIMPLE_MODE(1))
+//  axi_wrapper_inst (
+//    .clk(ce_clk),
+//    .reset(ce_rst),
+//    // RFNoC Shell
+//    .clear_tx_seqnum(clear_tx_seqnum),
+//    .next_dst(next_dst_sid),
+//    .set_stb(set_stb),
+//    .set_addr(set_addr),
+//    .set_data(set_data),
+//    .i_tdata(str_sink_tdata),
+//    .i_tlast(str_sink_tlast),
+//    .i_tvalid(str_sink_tvalid),
+//    .i_tready(str_sink_tready),
+//    .o_tdata(str_src_tdata),
+//    .o_tlast(str_src_tlast),
+//    .o_tvalid(str_src_tvalid),
+//    .o_tready(str_src_tready),
+//    // Internal AXI streams
+//    .m_axis_data_tdata(m_axis_data_tdata),
+//    .m_axis_data_tuser(m_axis_data_tuser),
+//    .m_axis_data_tlast(m_axis_data_tlast),
+//    .m_axis_data_tvalid(m_axis_data_tvalid),
+//    .m_axis_data_tready(m_axis_data_tready),
+//    .s_axis_data_tdata(s_axis_data_tdata),
+//    .s_axis_data_tlast(s_axis_data_tlast),
+//    .s_axis_data_tvalid(s_axis_data_tvalid),
+//    .s_axis_data_tready(s_axis_data_tready),
+//    .s_axis_data_tuser(s_axis_data_tuser),
+//    .m_axis_config_tdata(),
+//    .m_axis_config_tlast(),
+//    .m_axis_config_tvalid(),
+//    .m_axis_config_tready(1'b1));
 
-  chdr_framer #(.SIZE(11), .USE_SEQ_NUM(0)) inst_chdr_framer(
-    .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
-    .i_tdata(s_axis_data_tdata), .i_tuser(s_axis_data_tuser), .i_tlast(s_axis_data_tlast), .i_tvalid(s_axis_data_tvalid), .i_tready(s_axis_data_tready),
-    .o_tdata(str_src_tdata), .o_tlast(str_src_tlast), .o_tvalid(str_src_tvalid), .o_tready(str_src_tready));
+  chdr_deframer inst_chdr_deframer (
+	  .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+	  .i_tdata(str_sink_tdata), .i_tlast(str_sink_tlast), .i_tvalid(str_sink_tvalid), .i_tready(str_sink_tready),
+	  .o_tdata(m_axis_data_tdata), .o_tuser(), .o_tlast(m_axis_data_tlast), .o_tvalid(m_axis_data_tvalid), .o_tready(m_axis_data_tready));
+  chdr_framer #(.SIZE(11), .USE_SEQ_NUM(0)) inst_chdr_framer (
+	  .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
+	  .i_tdata(s_axis_data_tdata), .i_tuser(s_axis_data_tuser), .i_tlast(s_axis_data_tlast), .i_tvalid(s_axis_data_tvalid), .i_tready(s_axis_data_tready),
+	  .o_tdata(str_src_tdata), .o_tlast(str_src_tlast), .o_tvalid(str_src_tvalid), .o_tready(str_src_tready));
 
   //now here we split, instantiate two delays, apply, and recombine
   //we have to use a split with FIFO because there's no guarantee our path
@@ -161,6 +193,7 @@ module noc_block_delay #(
   delay_i_inst(
     .clk(ce_clk),
     .reset(ce_rst),
+    .clear(clear_tx_seqnum),
     .i_tdata(i_data_tdata),
     .i_tlast(i_data_tlast),
     .i_tvalid(i_data_tvalid),
@@ -169,8 +202,7 @@ module noc_block_delay #(
     .o_tlast(delayed_i_tlast),
     .o_tvalid(delayed_i_tvalid),
     .o_tready(delayed_i_tready),
-    .len(delay_i[MAX_DELAY_LOG2-1:0]),
-    .max_spp(16'b0));
+    .len(delay_i[MAX_DELAY_LOG2-1:0]));
 
   wire enable_diff;
   delay_better #(
@@ -179,6 +211,7 @@ module noc_block_delay #(
   delay_q_inst(
     .clk(ce_clk),
     .reset(ce_rst),
+    .clear(clear_tx_seqnum),
     .i_tdata(q_data_tdata),
     .i_tlast(q_data_tlast),
     .i_tvalid(q_data_tvalid),
@@ -187,8 +220,7 @@ module noc_block_delay #(
     .o_tlast(delayed_q_tlast),
     .o_tvalid(delayed_q_tvalid),
     .o_tready(delayed_q_tready),
-    .len(enable_diff ? delay_q[MAX_DELAY_LOG2-1:0] : delay_i[MAX_DELAY_LOG2-1:0]),
-    .max_spp(16'b0));
+    .len(enable_diff ? delay_q[MAX_DELAY_LOG2-1:0] : delay_i[MAX_DELAY_LOG2-1:0]));
 
   wire [15:0] buffered_i_tdata;
   wire buffered_i_tvalid, buffered_i_tlast, buffered_i_tready;
@@ -199,12 +231,12 @@ module noc_block_delay #(
   wire joined_tvalid, joined_tlast, joined_tready;
 
   axi_fifo #(.WIDTH(17), .SIZE(MAX_DIFF_DELAY_LOG2)) i_buffer (
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
     .i_tdata({delayed_i_tlast, delayed_i_tdata}), .i_tvalid(delayed_i_tvalid), .i_tready(delayed_i_tready),
     .o_tdata({buffered_i_tlast, buffered_i_tdata}), .o_tvalid(buffered_i_tvalid), .o_tready(buffered_i_tready));
 
   axi_fifo #(.WIDTH(17), .SIZE(MAX_DIFF_DELAY_LOG2)) q_buffer (
-    .clk(ce_clk), .reset(ce_rst), .clear(1'b0),
+    .clk(ce_clk), .reset(ce_rst), .clear(clear_tx_seqnum),
     .i_tdata({delayed_q_tlast, delayed_q_tdata}), .i_tvalid(delayed_q_tvalid), .i_tready(delayed_q_tready),
     .o_tdata({buffered_q_tlast, buffered_q_tdata}), .o_tvalid(buffered_q_tvalid), .o_tready(buffered_q_tready));
 
@@ -215,6 +247,16 @@ module noc_block_delay #(
   assign buffered_q_tready = int_tready & all_here;
 
   //just to join the two streams
+  //uh oh we have a problem. what if we're operating in split mode?
+  //in split mode we still have a competing-tlast problem.
+  //we could conceivably avoid that by just instantiating three delay blocks
+  //and joining streams later on.
+  //you could also just try keeping the stupid packet resizer in case that's
+  //not the issue with the delay block.
+  //
+  //if you made the differential delay compile-time-selected, you could
+  //avoid a lot of complication in here. no need for the packet resizer for
+  //the non-differential one.
   axi_fifo_flop #(
     .WIDTH(33))
     out_fifo(
@@ -240,7 +282,7 @@ module noc_block_delay #(
   wire [127:0] new_tuser = {4'b0000, 12'b0, 16'd0, src_sid, src_sid, 64'b0 };
   packet_resizer #(.SR_PKT_SIZE(SR_PKT_SIZE)) inst_packet_resizer(
     .clk(ce_clk),
-    .reset(ce_rst),
+    .reset(ce_rst|clear_tx_seqnum),
     .next_dst_sid(next_dst_sid),
     .set_stb(set_stb), .set_addr(set_addr), .set_data(set_data),
     .i_tdata(joined_tdata),

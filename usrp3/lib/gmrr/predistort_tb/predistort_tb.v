@@ -53,7 +53,7 @@ module predistort_tb();
    integer  i;
    initial
      begin
-        $readmemh("/home/nick/clabs/fpga/usrp3/lib/gmrr/predistort_tb/sine.list", taps);
+        $readmemh("/home/nick/clabs/clabs_15/uhd/fpga-src/usrp3/lib/gmrr/predistort_tb/sine.list", taps);
         @(negedge reset);
         taps_tdata <= taps[0];
         taps_tvalid <= 0;

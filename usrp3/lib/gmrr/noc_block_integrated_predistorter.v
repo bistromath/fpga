@@ -33,6 +33,8 @@ module noc_block_integrated_predistorter #(
   localparam SR_AXI_CONFIG    = 129;
   localparam SR_MAG_GAIN      = 192;
   localparam SR_SQUELCH_LEVEL = 193;
+  localparam SR_DRIVE_GAIN    = 194;
+  localparam SR_FINAL_GAIN    = 195;
 
   //----------------------------------------------------------------------------
   // Wires
@@ -79,11 +81,17 @@ module noc_block_integrated_predistorter #(
   //Settings registers
   wire [15:0] mag_gain;
   wire [15:0] squelch_level;
+  wire [15:0] drive_gain;
+  wire [15:0] final_gain;
 
   setting_reg #(.my_addr(SR_MAG_GAIN), .width(16)) sr_mag_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(mag_gain), .changed());
   setting_reg #(.my_addr(SR_SQUELCH_LEVEL), .width(16)) sr_squelch_level(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(squelch_level), .changed());
+  setting_reg #(.my_addr(SR_DRIVE_GAIN), .width(16)) sr_drive_gain(
+    .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(drive_gain), .changed());
+  setting_reg #(.my_addr(SR_FINAL_GAIN), .width(16)) sr_final_gain(
+    .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(final_gain), .changed());
 
   // RFNoC Shell
   noc_shell #(
@@ -403,6 +411,24 @@ module noc_block_integrated_predistorter #(
    .m_axis_dout_tvalid(normal_axis_data_tvalid),
    .m_axis_dout_tlast(normal_axis_data_tlast));
 
+  //the output is 1Q14, so clip it to Q14 and we'll shift it later
+  wire [29:0] normal_axis_clipped_tdata;
+  wire normal_axis_clipped_tlast, normal_axis_clipped_tready, normal_axis_clipped_tvalid;
+  axi_clip_complex #(
+	  .WIDTH_IN(16),
+	  .WIDTH_OUT(15),
+	  .FIFOSIZE(0)) norm_clip (
+    .clk(ce_clk),
+    .reset(ce_rst),
+    .i_tdata(normal_axis_data_tdata),
+    .i_tlast(normal_axis_data_tlast),
+    .i_tready(normal_axis_data_tready),
+    .i_tvalid(normal_axis_data_tvalid),
+    .o_tdata(normal_axis_clipped_tdata),
+    .o_tlast(normal_axis_clipped_tlast),
+    .o_tready(normal_axis_clipped_tready),
+    .o_tvalid(normal_axis_clipped_tvalid));
+
   /* BEGIN PREDISTORTER
    */
   //you'll want to split that stream into four streams.
@@ -451,27 +477,108 @@ module noc_block_integrated_predistorter #(
     .o_tvalid(joined_pd_out_tvalid[0]),
     .o_tready(joined_pd_out_tready[0]),
     .o_tlast(joined_pd_out_tlast[0]));
-  join_complex #(.WIDTH(16)) join_complex_inst_1 (
-    .ii_tdata(pd_out_tdata[3]),
-    .ii_tvalid(pd_out_tvalid[3]),
-    .ii_tready(pd_out_tready[3]),
-    .ii_tlast(pd_out_tlast[3]),
-    .iq_tdata(pd_out_tdata[2]),
-    .iq_tvalid(pd_out_tvalid[2]),
-    .iq_tready(pd_out_tready[2]),
-    .iq_tlast(pd_out_tlast[2]),
-    .o_tdata(joined_pd_out_tdata[1]),
-    .o_tvalid(joined_pd_out_tvalid[1]),
-    .o_tready(joined_pd_out_tready[1]),
-    .o_tlast(joined_pd_out_tlast[1]));
 
+
+  //multiply the normalized input by the predistorter magnitude output.
   wire [31:0] mult_out_tdata;
   wire mult_out_tlast, mult_out_tready, mult_out_tvalid;
   cmul cmul (
       .clk(ce_clk), .reset(ce_rst),
-      .a_tdata(normal_axis_data_tdata), .a_tlast(normal_axis_data_tlast), .a_tvalid(normal_axis_data_tvalid), .a_tready(normal_axis_data_tready),
+      .a_tdata({normal_axis_clipped_tdata[29:15], 1'b0, normal_axis_clipped_tdata[14:0], 1'b0}), .a_tlast(normal_axis_clipped_tlast), .a_tvalid(normal_axis_clipped_tvalid), .a_tready(normal_axis_clipped_tready),
       .b_tdata(joined_pd_out_tdata[0]), .b_tlast(joined_pd_out_tlast[0]), .b_tvalid(joined_pd_out_tvalid[0]), .b_tready(joined_pd_out_tready[0]),
       .o_tdata(mult_out_tdata), .o_tlast(mult_out_tlast), .o_tvalid(mult_out_tvalid), .o_tready(mult_out_tready));
+
+  //scale the drive and final outputs.
+  wire [25:0] gained_drive_out_tdata;
+  wire gained_drive_out_tvalid, gained_drive_out_tready, gained_drive_out_tlast;
+  wire [25:0] gained_final_out_tdata;
+  wire gained_final_out_tvalid, gained_final_out_tready, gained_final_out_tlast;
+  wire [15:0] clipped_drive_out_tdata;
+  wire clipped_drive_out_tvalid, clipped_drive_out_tready, clipped_drive_out_tlast;
+  wire [15:0] clipped_final_out_tdata;
+  wire clipped_final_out_tvalid, clipped_final_out_tready, clipped_final_out_tlast;
+  wire drive_gain_a_tready, drive_gain_b_tready;
+  assign pd_out_tready[3] = drive_gain_a_tready & drive_gain_b_tready;
+  wire final_gain_a_tready, final_gain_b_tready;
+  assign pd_out_tready[2] = final_gain_a_tready & final_gain_b_tready;
+
+  mult #(.WIDTH_A(16), .WIDTH_B(16), .WIDTH_P(26), .DROP_TOP_P(12)) drivemult (
+	  .clk(ce_clk), .reset(ce_rst),
+	  .a_tdata(pd_out_tdata[3]),
+	  .a_tvalid(pd_out_tvalid[3]),
+	  .a_tready(drive_gain_a_tready),
+	  .a_tlast(pd_out_tlast[3]),
+	  .b_tdata(drive_gain),
+	  .b_tvalid(pd_out_tvalid[3]),
+	  .b_tready(drive_gain_b_tready),
+	  .b_tlast(pd_out_tlast[3]),
+	  .p_tdata(gained_drive_out_tdata),
+	  .p_tvalid(gained_drive_out_tvalid),
+	  .p_tready(gained_drive_out_tready),
+	  .p_tlast(gained_drive_out_tlast)
+	);
+  mult #(.WIDTH_A(16), .WIDTH_B(16), .WIDTH_P(26), .DROP_TOP_P(12)) finalmult (
+	  .clk(ce_clk), .reset(ce_rst),
+	  .a_tdata(pd_out_tdata[2]),
+	  .a_tvalid(pd_out_tvalid[2]),
+	  .a_tready(final_gain_a_tready),
+	  .a_tlast(pd_out_tlast[2]),
+	  .b_tdata(final_gain),
+	  .b_tvalid(pd_out_tvalid[2]),
+	  .b_tready(final_gain_b_tready),
+	  .b_tlast(pd_out_tlast[2]),
+	  .p_tdata(gained_final_out_tdata),
+	  .p_tvalid(gained_final_out_tvalid),
+	  .p_tready(gained_final_out_tready),
+	  .p_tlast(gained_final_out_tlast)
+	);
+
+  //round and clip the drive and final outputs
+  axi_round_and_clip #(
+      .WIDTH_IN(26),
+      .WIDTH_OUT(16),
+      .CLIP_BITS(2), //has nothing to do with scaling
+      .FIFOSIZE(0)) drive_round (
+   .clk(ce_clk),
+   .reset(ce_rst),
+   .i_tdata(gained_drive_out_tdata),
+   .i_tlast(gained_drive_out_tlast),
+   .i_tready(gained_drive_out_tready),
+   .i_tvalid(gained_drive_out_tvalid),
+   .o_tdata(clipped_drive_out_tdata),
+   .o_tlast(clipped_drive_out_tlast),
+   .o_tready(clipped_drive_out_tready),
+   .o_tvalid(clipped_drive_out_tvalid));
+  axi_round_and_clip #(
+      .WIDTH_IN(26),
+      .WIDTH_OUT(16),
+      .CLIP_BITS(2), //has nothing to do with scaling
+      .FIFOSIZE(0)) final_round (
+   .clk(ce_clk),
+   .reset(ce_rst),
+   .i_tdata(gained_final_out_tdata),
+   .i_tlast(gained_final_out_tlast),
+   .i_tready(gained_final_out_tready),
+   .i_tvalid(gained_final_out_tvalid),
+   .o_tdata(clipped_final_out_tdata),
+   .o_tlast(clipped_final_out_tlast),
+   .o_tready(clipped_final_out_tready),
+   .o_tvalid(clipped_final_out_tvalid));
+
+  //join the clipped drive/final together
+  join_complex #(.WIDTH(16)) join_complex_inst_1 (
+    .ii_tdata(clipped_drive_out_tdata),
+    .ii_tvalid(clipped_drive_out_tvalid),
+    .ii_tready(clipped_drive_out_tready),
+    .ii_tlast(clipped_drive_out_tlast),
+    .iq_tdata(clipped_final_out_tdata),
+    .iq_tvalid(clipped_final_out_tvalid),
+    .iq_tready(clipped_final_out_tready),
+    .iq_tlast(clipped_final_out_tlast),
+    .o_tdata(joined_pd_out_tdata[1]),
+    .o_tvalid(joined_pd_out_tvalid[1]),
+    .o_tready(joined_pd_out_tready[1]),
+    .o_tlast(joined_pd_out_tlast[1]));
 
   assign s_axis_data_tdata[0] = mult_out_tdata;
   assign s_axis_data_tlast[0] = mult_out_tlast;

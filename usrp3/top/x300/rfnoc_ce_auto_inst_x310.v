@@ -24,7 +24,7 @@
     .o_tdata({ce_i_tdata[0], ce_i_tdata[1]}), .o_tlast({ce_i_tlast[0], ce_i_tlast[1]}), .o_tvalid({ce_i_tvalid[0], ce_i_tvalid[1]}), .o_tready({ce_i_tready[0], ce_i_tready[1]}),
     .debug(ce_debug[0]));
 
-  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(4)) inst_noc_block_delay_0 (
+  noc_block_delay #(.MAX_DIFF_DELAY_LOG2(10)) inst_noc_block_delay_0 (
     .bus_clk(bus_clk), .bus_rst(bus_rst),
     .ce_clk(ce_clk), .ce_rst(ce_rst),
     .i_tdata(ce_o_tdata[2]), .i_tlast(ce_o_tlast[2]), .i_tvalid(ce_o_tvalid[2]), .i_tready(ce_o_tready[2]),
@@ -38,10 +38,30 @@
     .o_tdata(ce_i_tdata[3]), .o_tlast(ce_i_tlast[3]), .o_tvalid(ce_i_tvalid[3]), .o_tready(ce_i_tready[3]),
     .debug(ce_debug[3]));
 
+  noc_block_ddc #(.NUM_CHAINS(1), .NOC_ID(64'hDDC0_0000_0000_0001)) inst_noc_block_ddc (
+    .bus_clk(bus_clk), .bus_rst(bus_rst),
+    .ce_clk(ce_clk), .ce_rst(ce_rst),
+    .i_tdata(ce_o_tdata[4]), .i_tlast(ce_o_tlast[4]), .i_tvalid(ce_o_tvalid[4]), .i_tready(ce_o_tready[4]),
+    .o_tdata(ce_i_tdata[4]), .o_tlast(ce_i_tlast[4]), .o_tvalid(ce_i_tvalid[4]), .o_tready(ce_i_tready[4]),
+    .debug(ce_debug[4]));
+
+  noc_block_duc inst_noc_block_duc (
+    .bus_clk(bus_clk), .bus_rst(bus_rst),
+    .ce_clk(ce_clk), .ce_rst(ce_rst),
+    .i_tdata(ce_o_tdata[5]), .i_tlast(ce_o_tlast[5]), .i_tvalid(ce_o_tvalid[5]), .i_tready(ce_o_tready[5]),
+    .o_tdata(ce_i_tdata[5]), .o_tlast(ce_i_tlast[5]), .o_tvalid(ce_i_tvalid[5]), .o_tready(ce_i_tready[5]),
+    .debug(ce_debug[5]));
+
+  noc_block_duc inst_noc_block_duc2 (
+    .bus_clk(bus_clk), .bus_rst(bus_rst),
+    .ce_clk(ce_clk), .ce_rst(ce_rst),
+    .i_tdata(ce_o_tdata[6]), .i_tlast(ce_o_tlast[6]), .i_tvalid(ce_o_tvalid[6]), .i_tready(ce_o_tready[6]),
+    .o_tdata(ce_i_tdata[6]), .o_tlast(ce_i_tlast[6]), .o_tvalid(ce_i_tvalid[6]), .o_tready(ce_i_tready[6]),
+    .debug(ce_debug[6]));
   // Fill remaining crossbar ports with loopback FIFOs
   genvar n;
   generate
-    for (n = 4; n < NUM_CE; n = n + 1) begin
+    for (n = 7; n < NUM_CE; n = n + 1) begin
       noc_block_axi_fifo_loopback inst_noc_block_axi_fifo_loopback (
         .bus_clk(bus_clk), .bus_rst(bus_rst),
         .ce_clk(ce_clk), .ce_rst(ce_rst),

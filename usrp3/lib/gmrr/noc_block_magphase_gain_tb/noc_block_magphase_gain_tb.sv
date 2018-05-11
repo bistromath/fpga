@@ -11,29 +11,14 @@
 `include "sim_clks_rsts.vh"
 `include "sim_rfnoc_lib.svh"
 
-
 module noc_block_magphase_gain_tb();
   `TEST_BENCH_INIT("noc_block_magphase_gain_tb",`NUM_TEST_CASES,`NS_PER_TICK);
   localparam BUS_CLK_PERIOD = $ceil(1e9/166.67e6);
   localparam CE_CLK_PERIOD  = $ceil(1e9/200e6);
-  localparam NUM_CE         = 2;  // Number of Computation Engines / User RFNoC blocks to simulate
+  localparam NUM_CE         = 1;  // Number of Computation Engines / User RFNoC blocks to simulate
   localparam NUM_STREAMS    = 2;  // Number of test bench streams
   `RFNOC_SIM_INIT(NUM_CE, NUM_STREAMS, BUS_CLK_PERIOD, CE_CLK_PERIOD);
-
-  `RFNOC_ADD_BLOCK_CUSTOM(noc_block_magphase_gain_mag, 0);
-  `RFNOC_ADD_BLOCK_CUSTOM(noc_block_magphase_gain_norm, 1);
-  noc_block_magphase_gain noc_block_magphase_gain (
-	.ce_clk(ce_clk), .ce_rst(ce_rst),
-	.bus_clk(bus_clk), .bus_rst(bus_rst),
-	.i_tdata({noc_block_magphase_gain_norm_i_tdata, noc_block_magphase_gain_mag_i_tdata}),
-	.i_tlast({noc_block_magphase_gain_norm_i_tlast, noc_block_magphase_gain_mag_i_tlast}),
-	.i_tvalid({noc_block_magphase_gain_norm_i_tvalid, noc_block_magphase_gain_mag_i_tvalid}),
-	.i_tready({noc_block_magphase_gain_norm_i_tready, noc_block_magphase_gain_mag_i_tready}),
-	.o_tdata({noc_block_magphase_gain_norm_o_tdata, noc_block_magphase_gain_mag_o_tdata}),
-	.o_tlast({noc_block_magphase_gain_norm_o_tlast, noc_block_magphase_gain_mag_o_tlast}),
-	.o_tvalid({noc_block_magphase_gain_norm_o_tvalid, noc_block_magphase_gain_mag_o_tvalid}),
-	.o_tready({noc_block_magphase_gain_norm_o_tready, noc_block_magphase_gain_mag_o_tready})
-  );
+  `RFNOC_ADD_BLOCK(noc_block_magphase_gain, 0);
 
   localparam SPP         = 256; // Samples per packet
   localparam NUM_PASSES  = 2;
@@ -74,7 +59,7 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     `TEST_CASE_START("Check NoC ID");
     // Read NOC IDs
-    tb_streamer.read_reg(sid_noc_block_magphase_gain_mag, RB_NOC_ID, readback);
+    tb_streamer.read_reg(sid_noc_block_magphase_gain, RB_NOC_ID, readback);
     $display("Read mag/phase NOC ID: %16x", readback);
     `ASSERT_ERROR(readback == noc_block_magphase_gain.NOC_ID, "Incorrect NOC ID");
     `TEST_CASE_DONE(1);
@@ -84,8 +69,8 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     `TEST_CASE_START("Connect RFNoC blocks");
     `RFNOC_CONNECT_BLOCK_PORT(noc_block_tb,0,noc_block_magphase_gain,0,SC16,SPP);
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain_mag,0,noc_block_tb,0,SC16,SPP);
-    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain_norm,0,noc_block_tb,1,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain,0,noc_block_tb,0,SC16,SPP);
+    `RFNOC_CONNECT_BLOCK_PORT(noc_block_magphase_gain,1,noc_block_tb,1,SC16,SPP);
     `TEST_CASE_DONE(1);
 
     /********************************************************
@@ -93,8 +78,8 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     `TEST_CASE_START("Setup Mag/Phase block");
     //TODO set magnitude and phase gains here
-    tb_streamer.write_reg(sid_noc_block_magphase_gain_mag, noc_block_magphase_gain.SR_MAG_GAIN, 256);
-    tb_streamer.write_reg(sid_noc_block_magphase_gain_mag, noc_block_magphase_gain.SR_SQUELCH_LEVEL, 8000);
+    tb_streamer.write_reg(sid_noc_block_magphase_gain, noc_block_magphase_gain.SR_MAG_GAIN, 256);
+    tb_streamer.write_reg(sid_noc_block_magphase_gain, noc_block_magphase_gain.SR_SQUELCH_LEVEL, 0001);
     `TEST_CASE_DONE(1);
 
     /********************************************************
@@ -102,7 +87,7 @@ module noc_block_magphase_gain_tb();
     ********************************************************/
     for (int l = 0; l < SPP; l+=1) begin
        i_value[l] = 16'(cos_1_32nd[l%32]);
-       q_value[l] = 16'(0);//sin_1_32nd[l%32]);
+       q_value[l] = 16'(sin_1_32nd[l%32]);
     end
     `TEST_CASE_START("Send test vectors");
     begin
