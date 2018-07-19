@@ -30,11 +30,12 @@ module noc_block_integrated_predistorter #(
   //----------------------------------------------------------------------------
 
   // Settings registers addresses
-  localparam SR_AXI_CONFIG    = 129;
-  localparam SR_MAG_GAIN      = 192;
-  localparam SR_SQUELCH_LEVEL = 193;
-  localparam SR_DRIVE_GAIN    = 194;
-  localparam SR_FINAL_GAIN    = 195;
+  localparam SR_AXI_CONFIG     = 129;
+  localparam SR_MAG_GAIN       = 192;
+  localparam SR_SQUELCH_LEVEL  = 193;
+  localparam SR_DRIVE_GAIN     = 194;
+  localparam SR_FINAL_GAIN     = 195;
+  localparam SR_PREDRIVE_POWER = 196;
 
   //----------------------------------------------------------------------------
   // Wires
@@ -83,6 +84,7 @@ module noc_block_integrated_predistorter #(
   wire [15:0] squelch_level;
   wire [15:0] drive_gain;
   wire [15:0] final_gain;
+  wire        predrive_power;
 
   setting_reg #(.my_addr(SR_MAG_GAIN), .width(16)) sr_mag_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(mag_gain), .changed());
@@ -92,6 +94,8 @@ module noc_block_integrated_predistorter #(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(drive_gain), .changed());
   setting_reg #(.my_addr(SR_FINAL_GAIN), .width(16)) sr_final_gain(
     .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(final_gain), .changed());
+  setting_reg #(.my_addr(SR_PREDRIVE_POWER), .width(1), .at_reset(1)) sr_predrive_power(
+    .clk(ce_clk), .rst(ce_rst), .strobe(set_stb[0]), .addr(set_addr[0]), .in(set_data[0]), .out(predrive_power), .changed());
 
   // RFNoC Shell
   noc_shell #(
@@ -580,7 +584,7 @@ module noc_block_integrated_predistorter #(
     .o_tready(joined_pd_out_tready[1]),
     .o_tlast(joined_pd_out_tlast[1]));
 
-  assign s_axis_data_tdata[0] = mult_out_tdata;
+  assign s_axis_data_tdata[0] = predrive_power ? {mult_out_tdata[30:16], 1'b0, mult_out_tdata[14:0], 1'b0} : 32'b0;
   assign s_axis_data_tlast[0] = mult_out_tlast;
   assign mult_out_tready = s_axis_data_tready[0];
   assign s_axis_data_tvalid[0] = mult_out_tvalid;

@@ -97,4 +97,4 @@ module delay_better
    assign o_tdata = (state == STATE_DELAY_TRIGGER) ? last_sample : i_tdata;
 
 endmodule // delay_better
-`default_nettype wire
+//`default_nettype wire
